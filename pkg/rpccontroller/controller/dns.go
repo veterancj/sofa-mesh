@@ -23,9 +23,10 @@ import (
 	"strings"
 	"time"
 
+	"net/http"
+
 	"github.com/coreos/etcd/clientv3"
 	"istio.io/istio/pkg/log"
-	"net/http"
 )
 
 const (
@@ -41,11 +42,11 @@ type EtcdHostData struct {
 
 // HostData to store use REST
 type HostData struct {
-	Zone 		string `json:"zone"`
-	Name 		string `json:"name"`
-	Type 		string `json:"type"`
+	Zone    string `json:"zone"`
+	Name    string `json:"name"`
+	Type    string `json:"type"`
 	Address string `json:"address, omitempty"`
-	TTL  		int    `json:"ttl, omitempty"`
+	TTL     int    `json:"ttl, omitempty"`
 }
 
 // DNSInterface for DNS
@@ -64,7 +65,7 @@ func newCoreDNSEtcd(client *clientv3.Client) *coreDNSEtcd {
 	}
 }
 
-func newCoreDNSREST(address string) * coreDNSREST {
+func newCoreDNSREST(address string) *coreDNSREST {
 	log.Infof("new coredns struct use address %s", address)
 	return &coreDNSREST{
 		dnsAddress: address,
@@ -75,7 +76,7 @@ func convertDomainToKey(domain string) string {
 	keys := strings.Split(domain, ".")
 
 	key := skyDNSPrefix
-	for i := len(keys) - 1; i >= 0; i -- {
+	for i := len(keys) - 1; i >= 0; i-- {
 		key += "/" + keys[i]
 	}
 
@@ -122,11 +123,11 @@ type coreDNSREST struct {
 // Update
 func (cd *coreDNSREST) Update(domain, ip, suffix string) error {
 	hostData := HostData{
-		Zone: suffix,
-		Name: domain,
-		Type: "A",
+		Zone:    suffix,
+		Name:    domain,
+		Type:    "A",
 		Address: ip,
-		TTL: defaultTTL,
+		TTL:     defaultTTL,
 	}
 
 	return cd.doRequest(&hostData, http.MethodPut)
@@ -136,7 +137,7 @@ func (cd *coreDNSREST) doRequest(hostData *HostData, method string) error {
 	if hostData.Zone[0] == '.' {
 		hostData.Zone = hostData.Zone[1:]
 	}
-	if hostData.Zone[len(hostData.Zone) - 1] != '.' {
+	if hostData.Zone[len(hostData.Zone)-1] != '.' {
 		hostData.Zone += "."
 	}
 	hostData.Name = strings.ToLower(hostData.Name)
@@ -170,7 +171,7 @@ func (cd *coreDNSREST) Delete(domain, suffix string) error {
 		Zone: suffix,
 		Name: domain,
 		Type: "A",
-		TTL: defaultTTL,
+		TTL:  defaultTTL,
 	}
 
 	return cd.doRequest(&hostData, http.MethodDelete)

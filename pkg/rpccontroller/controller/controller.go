@@ -77,9 +77,10 @@ func NewController(
 	stopCh <-chan struct{}) *Controller {
 	// Create event broadcaster
 	// Add rpc-controller types to the default Kubernetes Scheme so Events can be
-  err := watcherscheme.AddToScheme(scheme.Scheme); if err != nil {
-    panic(err)
-  }
+	err := watcherscheme.AddToScheme(scheme.Scheme)
+	if err != nil {
+		panic(err)
+	}
 	log.Info("Creating event broadcaster")
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(log.Infof)
