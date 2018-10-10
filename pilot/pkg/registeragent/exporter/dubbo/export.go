@@ -15,12 +15,12 @@
 package dubbo
 
 import (
-	"github.com/gin-gonic/gin"
+	"encoding/json"
 	"fmt"
-	"net/http"
+	"github.com/gin-gonic/gin"
 	"io/ioutil"
 	"istio.io/fortio/log"
-	"encoding/json"
+	"net/http"
 )
 
 type SimpleRpcInfoExporter struct {

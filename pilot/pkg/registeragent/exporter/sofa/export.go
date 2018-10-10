@@ -15,12 +15,12 @@
 package sofa
 
 import (
-	"github.com/gin-gonic/gin"
+	"encoding/json"
 	"fmt"
-	"net/http"
+	"github.com/gin-gonic/gin"
 	"io/ioutil"
 	"istio.io/fortio/log"
-	"encoding/json"
+	"net/http"
 	"strings"
 )
 
@@ -45,12 +45,12 @@ type InterfacesDTO struct {
 }
 
 type HealthInfo struct {
-	Status string                   `json:"status"`
+	Status          string          `json:"status"`
 	HealthCheckInfo HealthCheckInfo `json:"sofaBootComponentHealthCheckInfo"`
 }
 
 type HealthCheckInfo struct {
-	Status string         `json:"status"`
+	Status     string     `json:"status"`
 	Middleware Middleware `json:"Middleware"`
 }
 
