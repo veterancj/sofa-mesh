@@ -53,7 +53,7 @@ type RPCQueryResponse struct {
 // ServiceInterfaceData for interface data
 type ServiceInterfaceData struct {
 	Providers []ServiceInterface `json:"providers"`
-	Protocol  string             `json:"protocal"`
+	Protocol  string             `json:"protocol"`
 }
 
 // ServiceInterface struct

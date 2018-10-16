@@ -18,9 +18,9 @@
 package main
 
 import (
-	"time"
-	"net/http"
 	"fmt"
+	"net/http"
+	"time"
 
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -78,7 +78,8 @@ var (
 			}
 			log.Infof("Version %s", version.Info.String())
 
-			go startHealthCheckHttpServer(healthPort)
+			// start http health check server
+			go startHealthCheckHTTPServer(healthPort)
 
 			stopCh := signals.SetupSignalHandler()
 
@@ -131,7 +132,7 @@ var (
 	}
 )
 
-func startHealthCheckHttpServer(port int) {
+func startHealthCheckHTTPServer(port int) {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {

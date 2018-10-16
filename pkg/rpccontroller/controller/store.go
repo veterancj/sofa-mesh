@@ -29,13 +29,13 @@ import (
 )
 
 var (
-	dialTimeout    = 5 * time.Second
+	dialTimeout = 5 * time.Second
 )
 
 func useNonSecureClient(config *Config) bool {
 	return config.EtcdCaCertFile == "" ||
-				 config.EtcdCertFile == "" ||
-  			 config.EtcdKeyFile == ""
+		config.EtcdCertFile == "" ||
+		config.EtcdKeyFile == ""
 }
 
 func newEtcdClient(config *Config) *clientv3.Client {
