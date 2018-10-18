@@ -6,7 +6,7 @@ global:
   hub: docker.io/sofastack
 
   # Default tag for Istio images.
-  tag: 0.2.1
+  tag: 0.3.0
 
   sofamesh:
     binaryPath: /usr/local/bin/mosn
