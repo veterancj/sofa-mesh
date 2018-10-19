@@ -207,7 +207,22 @@ $(foreach FILE,$(GRAFANA_FILES),$(eval docker.grafana: $(ISTIO_DOCKER)/$(notdir 
 docker.grafana: addons/grafana/Dockerfile$$(suffix $$@) $(GRAFANA_FILES) $(ISTIO_DOCKER)/dashboards
 	$(DOCKER_RULE)
 
-DOCKER_TARGETS:=docker.pilot docker.proxy_debug docker.proxyv2 docker.app docker.test_policybackend $(PILOT_DOCKER) $(SERVICEGRAPH_DOCKER) $(MIXER_DOCKER) $(SECURITY_DOCKER) docker.grafana $(GALLEY_DOCKER)
+docker.register-agent: $(ISTIO_OUT)/register-agent
+docker.register-agent: pilot/pkg/config/registeragent/agent.yaml
+docker.register-agent: pilot/docker/Dockerfile.register-agent
+	mkdir -p $(ISTIO_DOCKER)/register-agent
+	cp $^ $(ISTIO_DOCKER)/register-agent/
+	time (cd $(ISTIO_DOCKER)/register-agent && \
+		docker build -t $(HUB)/register-agent:$(TAG) -f Dockerfile.register-agent .)
+
+docker.rpc-controller: $(ISTIO_OUT)/rpc-controller
+docker.rpc-controller: pilot/docker/Dockerfile.rpc-controller
+	mkdir -p $(ISTIO_DOCKER)/rpc-controller
+	cp $^ $(ISTIO_DOCKER)/rpc-controller/
+	time (cd $(ISTIO_DOCKER)/rpc-controller && \
+		docker build -t $(HUB)/rpc-controller:$(TAG) -f Dockerfile.rpc-controller .)
+
+DOCKER_TARGETS:=docker.pilot docker.proxy_debug docker.proxyv2 docker.app docker.test_policybackend $(PILOT_DOCKER) $(SERVICEGRAPH_DOCKER) $(MIXER_DOCKER) $(SECURITY_DOCKER) docker.grafana $(GALLEY_DOCKER) docker.register-agent docker.rpc-controller
 
 DOCKER_RULE=time (cp $< $(ISTIO_DOCKER)/ && cd $(ISTIO_DOCKER) && \
             docker build -t $(HUB)/$(subst docker.,,$@):$(TAG) -f Dockerfile$(suffix $@) .)
