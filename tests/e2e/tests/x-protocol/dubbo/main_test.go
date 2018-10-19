@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
+
 	"time"
 
+	"github.com/hashicorp/go-multierror"
 	"istio.io/istio/pkg/log"
 	"istio.io/istio/tests/e2e/framework"
 	"istio.io/istio/tests/util"
@@ -22,71 +23,48 @@ const (
 	consumerYaml            = "dubbo-consumer"
 	providerYaml            = "dubbo-provider"
 	busyboxYaml             = "busybox"
-	destRule                = "destination-rule-all"
-	versionRule             = "virtual-service-provider-v1"
-	weightRule              = "virtual-service-provider-20-80"
 	consumerHTTPPort        = "8080"
 	busyboxName             = "busybox"
 	consumerName            = "dubbo-consumer"
 	providerName            = "dubbo-provider"
+	destRule                = "destination-rule-all"
+	versionV1Rule           = "virtual-service-provider-v1"
+	versionV2Rule           = "virtual-service-provider-v2"
+	weightTwentyRule        = "virtual-service-provider-20-80"
+	weightFiftyRule         = "virtual-service-provider-50-50"
 	queryName               = "test"
 	expectedResponseContent = `Hello, test (from Spring Boot dubbo e2e test)`
-	testRetryTimes          = 5
+)
+
+var (
+	tc             *testConfig
+	testRetryTimes = 5
 )
 
 type testConfig struct {
 	*framework.CommonConfig
 }
 
-var (
-	tc *testConfig
-)
+func (t *testConfig) Setup() error {
+	if !util.CheckPodsRunning(tc.Kube.Namespace, tc.Kube.KubeConfig) {
+		return fmt.Errorf("can't get all pods running")
+	}
+
+	time.Sleep(time.Duration(30) * time.Second)
+
+	return nil
+}
+
+func (t *testConfig) Teardown() error {
+	return nil
+}
 
 func TestMain(m *testing.M) {
 	flag.Parse()
-	if err := framework.InitLogging(); err != nil {
-		log.Error("cannot setup logging")
-		os.Exit(-1)
-	}
-	if err := setTestConfig(); err != nil {
-		log.Errorf("could not create TestConfig: %v", err)
-		os.Exit(-1)
-	}
-
+	check(framework.InitLogging(), "cannot setup logging")
+	check(setTestConfig(), "could not create TestConfig")
+	tc.Cleanup.RegisterCleanable(tc)
 	os.Exit(tc.RunTest(m))
-}
-
-func TestDubbo(t *testing.T) {
-	log.Infof("Begin to start test case")
-
-	standby := 0
-
-	for i := 0; i <= testRetryTimes; i++ {
-		time.Sleep(time.Duration(standby) * time.Second)
-
-		url := getConsumerTargetUrl(queryName)
-		log.Infof("%d time fetch url: %s \n", i, url)
-		actualResponseContent, err := fetchConsumerResult(url)
-
-		if err != nil {
-			log.Errorf("error when fetch %s. Error %s", url, err)
-		} else {
-			log.Infof("success when fetch %s. response content: %s \n", url, actualResponseContent)
-
-			if strings.Index(actualResponseContent, expectedResponseContent) != 0 {
-				log.Errorf("response content is not correct, expect include %s, but %s", expectedResponseContent, actualResponseContent)
-			} else {
-				log.Infof("response content is correct: %s", actualResponseContent)
-				break
-			}
-		}
-
-		if i == testRetryTimes {
-			t.Fatalf("has been try %d times, but never success", i)
-		}
-
-		standby += 10
-	}
 }
 
 func setTestConfig() error {
@@ -147,4 +125,49 @@ func fetchConsumerResult(url string) (string, error) {
 
 func getDeploymentPath(deployment string) string {
 	return util.GetResourcePath(filepath.Join(testDataDir, deploymentDir, deployment+"."+yamlExtension))
+}
+
+func getRulePath(ruleKey string) string {
+	return util.GetResourcePath(filepath.Join(testDataDir, routeRulesDir, ruleKey+"."+yamlExtension))
+}
+
+func check(err error, msg string) {
+	if err != nil {
+		log.Errorf("%s. Error %s", msg, err)
+		os.Exit(-1)
+	}
+}
+
+func inspect(err error, fMsg, sMsg string, t *testing.T) {
+	if err != nil {
+		log.Errorf("%s. Error %s", fMsg, err)
+		t.Error(err)
+	} else if sMsg != "" {
+		log.Info(sMsg)
+	}
+}
+
+func deleteRules(ruleKeys []string) error {
+	var err error
+	for _, ruleKey := range ruleKeys {
+		rule := getRulePath(ruleKey)
+		if e := util.KubeDelete(tc.Kube.Namespace, rule, tc.Kube.KubeConfig); e != nil {
+			err = multierror.Append(err, e)
+		}
+	}
+	log.Info("Waiting for rule to be cleaned up...")
+	time.Sleep(time.Duration(30) * time.Second)
+	return err
+}
+
+func applyRules(ruleKeys []string) error {
+	for _, ruleKey := range ruleKeys {
+		rule := getRulePath(ruleKey)
+		if err := util.KubeApply(tc.Kube.Namespace, rule, tc.Kube.KubeConfig); err != nil {
+			return err
+		}
+	}
+	log.Info("Waiting for rules to propagate...")
+	time.Sleep(time.Duration(30) * time.Second)
+	return nil
 }
