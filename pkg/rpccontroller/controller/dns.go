@@ -52,7 +52,7 @@ type HostData struct {
 // DNSInterface for DNS
 type DNSInterface interface {
 	Update(domain, ip, suffix string) error
-	Delete(domain, suffix string) error
+	Delete(domain, ip, suffix string) error
 }
 
 type coreDNSEtcd struct {
@@ -72,7 +72,7 @@ func newCoreDNSREST(address string) *coreDNSREST {
 	}
 }
 
-func convertDomainToKey(domain string) string {
+func ConvertDomainToKey(domain string) string {
 	keys := strings.Split(domain, ".")
 
 	key := skyDNSPrefix
@@ -85,7 +85,7 @@ func convertDomainToKey(domain string) string {
 
 // Update
 func (cd *coreDNSEtcd) Update(domain, ip, suffix string) error {
-	key := convertDomainToKey(domain + suffix)
+	key := ConvertDomainToKey(domain + suffix)
 
 	hostData := EtcdHostData{
 		Host: ip,
@@ -105,8 +105,8 @@ func (cd *coreDNSEtcd) Update(domain, ip, suffix string) error {
 }
 
 // Delete
-func (cd *coreDNSEtcd) Delete(domain, suffix string) error {
-	key := convertDomainToKey(domain + suffix)
+func (cd *coreDNSEtcd) Delete(domain, ip, suffix string) error {
+	key := ConvertDomainToKey(domain + suffix)
 	log.Infof("delete %s", key)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -166,11 +166,12 @@ func (cd *coreDNSREST) doRequest(hostData *HostData, method string) error {
 }
 
 // Delete
-func (cd *coreDNSREST) Delete(domain, suffix string) error {
+func (cd *coreDNSREST) Delete(domain, ip, suffix string) error {
 	hostData := HostData{
 		Zone: suffix,
 		Name: domain,
 		Type: "A",
+		Address:ip,
 		TTL:  defaultTTL,
 	}
 
