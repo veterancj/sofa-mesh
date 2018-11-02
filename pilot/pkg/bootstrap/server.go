@@ -676,7 +676,7 @@ func (s *Server) initServiceControllers(args *PilotArgs) error {
 			zkctl, zkerr := zookeeper.NewController(
 				args.Service.Zookeeper.ServerURL, args.Service.Zookeeper.Root)
 			if zkerr != nil {
-				return fmt.Errorf("failed to create Consul controller: %v", zkerr)
+				return fmt.Errorf("failed to create Zookeeper controller: %v", zkerr)
 			}
 			serviceControllers.AddRegistry(
 				aggregate.Registry{

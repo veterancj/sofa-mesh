@@ -209,6 +209,10 @@ test/local/noauth/e2e_mixer_envoyv2: out_dir generate_yaml
 	--auth_enable=false --egress=false --ingress=false --rbac_enable=false \
 	--cluster_wide ${E2E_ARGS} ${T} ${EXTRA_E2E_ARGS} ${CAPTURE_LOG}
 
+test/local/x-protocol/e2e_dubbole: out_dir generate_yaml
+	set -o pipefail; go test -v -timeout 25m ./tests/e2e/tests/x-protocol/dubbo -args --auth_enable=false \
+	--rbac_enable=false --use_local_cluster --cluster_wide ${E2E_ARGS} ${T} ${EXTRA_E2E_ARGS} ${CAPTURE_LOG}
+
 junit-report: out_dir ${ISTIO_BIN}/go-junit-report
 	${ISTIO_BIN}/go-junit-report < $(OUT_DIR)/tests/build-log.txt > $(OUT_DIR)/tests/junit.xml
 

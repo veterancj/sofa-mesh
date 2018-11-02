@@ -15,19 +15,21 @@
 package exporter
 
 import (
-	"os"
-
 	"istio.io/istio/pilot/pkg/registeragent/exporter/default"
-	"istio.io/istio/pilot/pkg/registeragent/exporter/hsf"
+	"istio.io/istio/pilot/pkg/registeragent/exporter/dubbo"
+	sofa "istio.io/istio/pilot/pkg/registeragent/exporter/sofa"
 	"istio.io/istio/pkg/log"
+	"os"
 )
 
 func RpcInfoExporterFactory() (r RpcAcutator) {
 	rpcType := os.Getenv("RPC_TYPE")
 	log.Infof("rpcType: %s", rpcType)
 	switch rpcType {
-	case "HSF":
-		r = hsf.NewRpcInfoExporter()
+	case "DUBBO":
+		r = dubbo.NewRpcInfoExporter()
+	case "SOFA":
+		r = sofa.NewRpcInfoExporter()
 	default:
 		r = _default.NewRpcInfoExporter()
 	}
