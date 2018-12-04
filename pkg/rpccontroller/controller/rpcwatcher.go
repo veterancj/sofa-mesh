@@ -33,7 +33,6 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
-	"strings"
 	"time"
 
 	"k8s.io/client-go/kubernetes"
@@ -270,6 +269,7 @@ func (rw *rpcWatcher) queryRPCInterface(key string, rs *v1.RpcService) {
 			continue
 		}
 
+		/*
 		version, exist := pod.Labels[rpcVersion]
 		if !exist {
 			log.Errorf("service %s/%s pod %s/%s has no %s label:%v",
@@ -284,6 +284,7 @@ func (rw *rpcWatcher) queryRPCInterface(key string, rs *v1.RpcService) {
 		}
 
 		log.Infof("pod %s, interface %s, version %s", pod.Name, i, version)
+		*/
 
 		url := fmt.Sprintf("http://%s:10006/rpc/interfaces", pod.Status.PodIP)
 		resp, err := http.Get(url)
@@ -313,6 +314,7 @@ func (rw *rpcWatcher) queryRPCInterface(key string, rs *v1.RpcService) {
 		}
 
 		for _, inter := range rpcResponse.Data.Providers {
+			/*
 			if !strings.ContainsAny(inter.Interface, i) {
 				log.Infof("interface %s, i %s", inter.Interface, i)
 				continue
@@ -321,6 +323,7 @@ func (rw *rpcWatcher) queryRPCInterface(key string, rs *v1.RpcService) {
 				log.Infof("version %s, i %s", inter.Version, version)
 				continue
 			}
+			*/
 			interfaceStr := inter.Interface
 
 			// add <interface, clusterIP> to coreDNS
@@ -336,6 +339,9 @@ func (rw *rpcWatcher) queryRPCInterface(key string, rs *v1.RpcService) {
 			}
 			rw.rpcInterfacesMap[key][interfaceStr] = true
 		}
+
+		// query only one pod success to quit loop
+		break
 	}
 }
 
