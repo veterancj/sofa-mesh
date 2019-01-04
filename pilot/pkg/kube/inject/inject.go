@@ -65,6 +65,8 @@ var (
 		{"traffic.sidecar.istio.io/excludeOutboundIPRanges", ValidateExcludeIPRanges},
 		{"traffic.sidecar.istio.io/includeInboundPorts", ValidateIncludeInboundPorts},
 		{"traffic.sidecar.istio.io/excludeInboundPorts", ValidateExcludeInboundPorts},
+		{"traffic.sidecar.istio.io/includeOutboundPorts", ValidateIncludeOutboundPorts},
+		{"traffic.sidecar.istio.io/excludeOutboundPorts", ValidateExcludeOutboundPorts},
 	}
 
 	annotationPolicy = annotationRegistry[0]
@@ -366,7 +368,7 @@ func validateStatusPort(port string) error {
 // ValidateIncludeOutboundPorts validates the includeOutboundPorts parameter
 func ValidateIncludeOutboundPorts(ports string) error {
 	if ports != "*" {
-		if e := validatePortList(ports); e != nil {
+		if e := validatePortList("includeOutboundPorts", ports); e != nil {
 			return fmt.Errorf("includeOutboundPorts invalid: %v", e)
 		}
 	}
@@ -375,7 +377,7 @@ func ValidateIncludeOutboundPorts(ports string) error {
 
 // ValidateExcludeOutboundPorts validates the excludeOutboundPorts parameter
 func ValidateExcludeOutboundPorts(ports string) error {
-	if e := validatePortList(ports); e != nil {
+	if e := validatePortList("excludeOutboundPorts", ports); e != nil {
 		return fmt.Errorf("excludeOutboundPorts invalid: %v", e)
 	}
 	return nil
@@ -574,30 +576,6 @@ func injectionData(sidecarTemplate, version string, deploymentMetadata *metav1.O
 		return nil, "", fmt.Errorf("error encoded injection status: %v", err)
 	}
 	return &sic, string(statusAnnotationValue), nil
-}
-
-func validateAnnotations(metadata *metav1.ObjectMeta) error {
-	// Validate injection annotations, if present.
-	annotations := metadata.GetAnnotations()
-	if err := validateAnnotation(annotations, sidecarAnnotationInterceptionModeKey, ValidateInterceptionMode); err != nil {
-		return err
-	}
-	if err := validateAnnotation(annotations, sidecarAnnotationIncludeOutboundPortsPolicyKey, ValidateIncludeOutboundPorts); err != nil {
-		return err
-	}
-	if err := validateAnnotation(annotations, sidecarAnnotationExcludeOutboundPortsPolicyKey, ValidateExcludeOutboundPorts); err != nil {
-		return err
-	}
-	if err := validateAnnotation(annotations, sidecarAnnotationIncludeOutboundIPRangesPolicyKey, ValidateIncludeIPRanges); err != nil {
-		return err
-	}
-	if err := validateAnnotation(annotations, sidecarAnnotationExcludeOutboundIPRangesPolicyKey, ValidateExcludeIPRanges); err != nil {
-		return err
-	}
-	if err := validateAnnotation(annotations, sidecarAnnotationIncludeInboundPortsPolicyKey, ValidateIncludeInboundPorts); err != nil {
-		return err
-	}
-	return validateAnnotation(annotations, sidecarAnnotationExcludeInboundPortsPolicyKey, ValidateExcludeInboundPorts)
 }
 
 

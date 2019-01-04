@@ -419,8 +419,8 @@ func init() {
 			"trace", "debug", "info", "warning", "error", "critical", "off"))
 	proxyCmd.PersistentFlags().IntVar(&concurrency, "concurrency", int(values.Concurrency),
 		"number of worker threads to run")
-	proxyCmd.PersistentFlags().BoolVar(&bootstrapv2, "bootstrapv2", true,
-		"Use bootstrap v2 - DEPRECATED")
+	//proxyCmd.PersistentFlags().BoolVar(&bootstrapv2, "bootstrapv2", true,
+	//	"Use bootstrap v2 - DEPRECATED")
 	proxyCmd.PersistentFlags().StringVar(&templateFile, "templateFile", "",
 		"Go template bootstrap config")
 	proxyCmd.PersistentFlags().BoolVar(&disableInternalTelemetry, "disableInternalTelemetry", false,
