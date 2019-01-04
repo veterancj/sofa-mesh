@@ -588,6 +588,8 @@ func (m *Cluster_LbSubsetConfig) Validate() error {
 
 	}
 
+	// no validation rules for LocalityWeightAware
+
 	return nil
 }
 

@@ -140,6 +140,13 @@
   version = "2.3.2"
 
 [[projects]]
+  digest = "1:8b6f2ef15f14bcf695e2397e162730d1312ef5990399523db3e0c1f2498c97fe"
+  name = "github.com/alipay/sofa-mosn"
+  packages = ["pkg/xds-config-model/filter/network/x_proxy/v2"]
+  pruneopts = "NUT"
+  revision = "912ad20800ad94955b6a7687d6bbf86a25b17bd2"
+
+[[projects]]
   digest = "1:975108e8d4f5dab096fc991326e96a5716ee8d02e5e7386bb4796171afc4ab9a"
   name = "github.com/aokoli/goutils"
   packages = ["."]
@@ -255,6 +262,21 @@
   packages = ["."]
   pruneopts = "NUT"
   revision = "3a0bb77429bd3a61596f5e8a3172445844342120"
+
+[[projects]]
+  digest = "1:47da74996f38e04c8da4dbdc34928aedbe1246b6b6c37760a20e9280d7556d69"
+  name = "github.com/coreos/etcd"
+  packages = [
+    "auth/authpb",
+    "clientv3",
+    "etcdserver/api/v3rpc/rpctypes",
+    "etcdserver/etcdserverpb",
+    "mvcc/mvccpb",
+    "pkg/types",
+  ]
+  pruneopts = "NUT"
+  revision = "420a452267a7ce45b3fcbed04d54030d69964fc1"
+  version = "v3.2.24"
 
 [[projects]]
   branch = "v2"
@@ -402,6 +424,27 @@
   pruneopts = "NUT"
   revision = "0ca9ea5df5451ffdf184b4428c902747c2c11cd7"
   version = "v1.0.0"
+
+[[projects]]
+  branch = "master"
+  digest = "1:23edf5aaca7a1f15d68215ac41595c0732152757e9d7b3f282821222784049f1"
+  name = "github.com/gin-contrib/sse"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "22d885f9ecc78bf4ee5d72b937e4bbcdc58e8cae"
+
+[[projects]]
+  digest = "1:7f029513a3c64c1fc923af79bf27d4fd0ce4fafdd13b421c1884d52c84e9c600"
+  name = "github.com/gin-gonic/gin"
+  packages = [
+    ".",
+    "binding",
+    "json",
+    "render",
+  ]
+  pruneopts = "NUT"
+  revision = "b869fe1415e4b9eb52f247441830d502aece2d4d"
+  version = "v1.3.0"
 
 [[projects]]
   digest = "1:27b7ff77d8f9de0ca6f1e821e09246aaa83132d07b8606ca0ed1dcacdcc1dded"
@@ -835,6 +878,14 @@
   version = "v0.0.6"
 
 [[projects]]
+  digest = "1:bffa444ca07c69c599ae5876bc18b25bfd5fa85b297ca10a25594d284a7e9c5d"
+  name = "github.com/mattn/go-isatty"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "6ca4dbf54d38eea1a992b3c722a76a5d1c4cb25c"
+  version = "v0.0.4"
+
+[[projects]]
   digest = "1:5985ef4caf91ece5d54817c11ea25f182697534f8ae6521eadcd628c142ac4b6"
   name = "github.com/matttproud/golang_protobuf_extensions"
   packages = ["pbutil"]
@@ -1081,6 +1132,14 @@
   version = "v0.1"
 
 [[projects]]
+  branch = "master"
+  digest = "1:4d92d3bcd412de705100c10f0428a0b63b12f3d12455ebae46e9ea384c23b333"
+  name = "github.com/samuel/go-zookeeper"
+  packages = ["zk"]
+  pruneopts = "NUT"
+  revision = "c4fab1ac1bec58281ad0667dc3f0907a9476ac47"
+
+[[projects]]
   digest = "1:6bc0652ea6e39e22ccd522458b8bdd8665bf23bdc5a20eec90056e4dc7e273ca"
   name = "github.com/satori/go.uuid"
   packages = ["."]
@@ -1217,6 +1276,14 @@
   pruneopts = "NUT"
   revision = "4267858c0679cd4e47cefed8d7f70fd386cfb567"
   version = "v1.4.0"
+
+[[projects]]
+  digest = "1:919fc2a81add8ac4a7a236dceaf3e4c29ba4df96d13c3f2ce13a4d0132ebefb8"
+  name = "github.com/ugorji/go"
+  packages = ["codec"]
+  pruneopts = "NUT"
+  revision = "b4c50a2b199d93b13dc15e78929cfb23bfdf21ab"
+  version = "v1.1.1"
 
 [[projects]]
   branch = "master"
@@ -1555,6 +1622,14 @@
   version = "v1.2.1"
 
 [[projects]]
+  digest = "1:0215407129c5f116ae8f6d3af64df59c39d3f606a72ef77a1e6ed874f92a8d9c"
+  name = "gopkg.in/go-playground/validator.v8"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "5f1438d3fca68893a817e4a66806cea46a9e4ebf"
+  version = "v8.18.2"
+
+[[projects]]
   digest = "1:2d1fbdc6777e5408cabeb02bf336305e724b925ff4546ded0fa8715a7267922a"
   name = "gopkg.in/inf.v0"
   packages = ["."]
@@ -1624,6 +1699,14 @@
   ]
   pruneopts = "T"
   revision = "b1978437bd1f98da05c1c172efe1c250223513ef"
+
+[[projects]]
+  digest = "1:2f6cb2a0238865f4cde9b2af19e36a322ea9b50c1b8c8590f9972a2873c70a93"
+  name = "istio.io/fortio"
+  packages = ["log"]
+  pruneopts = "NUT"
+  revision = "d13f3b92c63db22136bac4e0896562404bd4ef6e"
+  version = "v1.1.0"
 
 [[projects]]
   branch = "release-1.11"
@@ -1972,6 +2055,7 @@
     "github.com/DataDog/datadog-go/statsd",
     "github.com/alicebob/miniredis",
     "github.com/alicebob/miniredis/server",
+    "github.com/alipay/sofa-mosn/pkg/xds-config-model/filter/network/x_proxy/v2",
     "github.com/aws/aws-sdk-go/aws",
     "github.com/aws/aws-sdk-go/aws/ec2metadata",
     "github.com/aws/aws-sdk-go/aws/session",
@@ -1984,6 +2068,7 @@
     "github.com/circonus-labs/circonus-gometrics",
     "github.com/circonus-labs/circonus-gometrics/checkmgr",
     "github.com/client9/misspell",
+    "github.com/coreos/etcd/clientv3",
     "github.com/coreos/go-oidc",
     "github.com/davecgh/go-spew/spew",
     "github.com/emicklei/go-restful",
@@ -2019,6 +2104,7 @@
     "github.com/fluent/fluent-logger-golang/fluent",
     "github.com/fsnotify/fsnotify",
     "github.com/ghodss/yaml",
+    "github.com/gin-gonic/gin",
     "github.com/go-redis/redis",
     "github.com/gogo/googleapis/google/rpc",
     "github.com/gogo/protobuf/gogoproto",
@@ -2068,6 +2154,7 @@
     "github.com/prometheus/client_model/go",
     "github.com/prometheus/common/model",
     "github.com/prometheus/prom2json",
+    "github.com/samuel/go-zookeeper/zk",
     "github.com/satori/go.uuid",
     "github.com/signalfx/com_signalfx_metrics_protobuf",
     "github.com/signalfx/golib/datapoint",
@@ -2142,6 +2229,7 @@
     "istio.io/api/networking/v1alpha3",
     "istio.io/api/policy/v1beta1",
     "istio.io/api/rbac/v1alpha1",
+    "istio.io/fortio/log",
     "k8s.io/api/admission/v1beta1",
     "k8s.io/api/admissionregistration/v1beta1",
     "k8s.io/api/apps/v1",
@@ -2197,6 +2285,7 @@
     "k8s.io/client-go/tools/record",
     "k8s.io/client-go/tools/remotecommand",
     "k8s.io/client-go/transport/spdy",
+    "k8s.io/client-go/util/flowcontrol",
     "k8s.io/client-go/util/workqueue",
     "k8s.io/helm/pkg/chartutil",
     "k8s.io/helm/pkg/engine",
