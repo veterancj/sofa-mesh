@@ -17,12 +17,11 @@ package kube
 import (
 	"reflect"
 	"testing"
+	"time"
 
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
-
-	"time"
 
 	"istio.io/istio/pilot/pkg/model"
 )
@@ -46,6 +45,8 @@ var (
 		{"http2-test", v1.ProtocolTCP, model.ProtocolHTTP2},
 		{"grpc", v1.ProtocolTCP, model.ProtocolGRPC},
 		{"grpc-test", v1.ProtocolTCP, model.ProtocolGRPC},
+		{"grpc-web", v1.ProtocolTCP, model.ProtocolGRPCWeb},
+		{"grpc-web-test", v1.ProtocolTCP, model.ProtocolGRPCWeb},
 		{"mongo", v1.ProtocolTCP, model.ProtocolMongo},
 		{"mongo-test", v1.ProtocolTCP, model.ProtocolMongo},
 		{"redis", v1.ProtocolTCP, model.ProtocolRedis},
@@ -67,8 +68,8 @@ func TestServiceConversion(t *testing.T) {
 	namespace := "default"
 	saA := "serviceaccountA"
 	saB := "serviceaccountB"
-	saC := "serviceaccountC@cloudservices.gserviceaccount.com"
-	saD := "serviceaccountD@developer.gserviceaccount.com"
+	saC := "spiffe://accounts.google.com/serviceaccountC@cloudservices.gserviceaccount.com"
+	saD := "spiffe://accounts.google.com/serviceaccountD@developer.gserviceaccount.com"
 
 	ip := "10.0.0.1"
 
@@ -78,9 +79,9 @@ func TestServiceConversion(t *testing.T) {
 			Name:      serviceName,
 			Namespace: namespace,
 			Annotations: map[string]string{
-				KubeServiceAccountsOnVMAnnotation:      saA + "," + saB,
-				CanonicalServiceAccountsOnVMAnnotation: saC + "," + saD,
-				"other/annotation":                     "test",
+				KubeServiceAccountsOnVMAnnotation:  saA + "," + saB,
+				CanonicalServiceAccountsAnnotation: saC + "," + saD,
+				"other/annotation":                 "test",
 			},
 			CreationTimestamp: metav1.Time{tnow},
 		},
@@ -133,10 +134,9 @@ func TestServiceConversion(t *testing.T) {
 		t.Errorf("number of service accounts is incorrect")
 	}
 	expected := []string{
+		saC, saD,
 		"spiffe://company.com/ns/default/sa/" + saA,
 		"spiffe://company.com/ns/default/sa/" + saB,
-		"spiffe://" + saC,
-		"spiffe://" + saD,
 	}
 	if !reflect.DeepEqual(sa, expected) {
 		t.Errorf("Unexpected service accounts %v (expecting %v)", sa, expected)
@@ -215,13 +215,57 @@ func TestExternalServiceConversion(t *testing.T) {
 			len(service.Ports), len(extSvc.Spec.Ports))
 	}
 
-	if service.ExternalName != model.Hostname(extSvc.Spec.ExternalName) || !service.External() {
+	if !service.External() {
 		t.Error("service should be external")
 	}
 
 	if service.Hostname != serviceHostname(serviceName, namespace, domainSuffix) {
 		t.Errorf("service hostname incorrect => %q, want %q",
-			service.Hostname, extSvc.Spec.ExternalName)
+			service.Hostname, serviceHostname(serviceName, namespace, domainSuffix))
+	}
+}
+
+func TestExternalClusterLocalServiceConversion(t *testing.T) {
+	serviceName := "service1"
+	namespace := "default"
+
+	extSvc := v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      serviceName,
+			Namespace: namespace,
+		},
+		Spec: v1.ServiceSpec{
+			Ports: []v1.ServicePort{
+				{
+					Name:     "http",
+					Port:     80,
+					Protocol: v1.ProtocolTCP,
+				},
+			},
+			Type:         v1.ServiceTypeExternalName,
+			ExternalName: "some.test.svc.cluster.local",
+		},
+	}
+
+	domainSuffix := "cluster.local"
+
+	service := convertService(extSvc, domainSuffix)
+	if service == nil {
+		t.Errorf("could not convert external service")
+	}
+
+	if len(service.Ports) != len(extSvc.Spec.Ports) {
+		t.Errorf("incorrect number of ports => %v, want %v",
+			len(service.Ports), len(extSvc.Spec.Ports))
+	}
+
+	if !service.External() {
+		t.Error("ExternalName service (even if .cluster.local) should be external")
+	}
+
+	if service.Hostname != serviceHostname(serviceName, namespace, domainSuffix) {
+		t.Errorf("service hostname incorrect => %q, want %q",
+			service.Hostname, serviceHostname(serviceName, namespace, domainSuffix))
 	}
 }
 

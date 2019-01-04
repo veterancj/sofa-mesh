@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // nolint:lll
-//go:generate go run $GOPATH/src/istio.io/istio/mixer/tools/mixgen/main.go adapter -n spybackend-nosession -s=false -t metric -t quota -t listentry -o nosession.yaml
+//go:generate go run $GOPATH/src/istio.io/istio/mixer/tools/mixgen/main.go adapter -n spybackend-nosession -s=false -t metric -t quota -t listentry -t apa -t checkoutput -o nosession.yaml
 
 package spybackend
 
@@ -23,6 +23,7 @@ import (
 	"net"
 	"sort"
 	"strings"
+	"time"
 
 	"google.golang.org/grpc"
 
@@ -30,6 +31,12 @@ import (
 	"istio.io/istio/mixer/template/listentry"
 	"istio.io/istio/mixer/template/metric"
 	"istio.io/istio/mixer/template/quota"
+	spyadapter "istio.io/istio/mixer/test/spyAdapter"
+	sampleapa "istio.io/istio/mixer/test/spyAdapter/template/apa"
+	samplecheck "istio.io/istio/mixer/test/spyAdapter/template/check"
+	checkoutputTmpl "istio.io/istio/mixer/test/spyAdapter/template/checkoutput"
+	samplequota "istio.io/istio/mixer/test/spyAdapter/template/quota"
+	samplereport "istio.io/istio/mixer/test/spyAdapter/template/report"
 )
 
 type (
@@ -38,27 +45,35 @@ type (
 		Addr() net.Addr
 		Close() error
 		Run()
+		GetCapturedCalls() []spyadapter.CapturedCall
 	}
 
 	// NoSessionServer models no session adapter backend.
 	NoSessionServer struct {
-		listener net.Listener
-		shutdown chan error
-		server   *grpc.Server
-		Behavior *Behavior
-		Requests *Requests
+		listener      net.Listener
+		shutdown      chan error
+		server        *grpc.Server
+		Behavior      *Behavior
+		Requests      *Requests
+		CapturedCalls []spyadapter.CapturedCall
 	}
 )
 
 var _ metric.HandleMetricServiceServer = &NoSessionServer{}
 var _ listentry.HandleListEntryServiceServer = &NoSessionServer{}
 var _ quota.HandleQuotaServiceServer = &NoSessionServer{}
+var _ samplecheck.HandleSampleCheckServiceServer = &NoSessionServer{}
+var _ samplequota.HandleSampleQuotaServiceServer = &NoSessionServer{}
+var _ samplereport.HandleSampleReportServiceServer = &NoSessionServer{}
+var _ sampleapa.HandleSampleApaServiceServer = &NoSessionServer{}
+var _ checkoutputTmpl.HandleCheckProducerServiceServer = &NoSessionServer{}
 
 // HandleMetric records metric entries and responds with the programmed response
 func (s *NoSessionServer) HandleMetric(c context.Context, r *metric.HandleMetricRequest) (*adptModel.ReportResult, error) {
 	s.Requests.metricLock.Lock()
 	s.Requests.HandleMetricRequest = append(s.Requests.HandleMetricRequest, r)
 	s.Requests.metricLock.Unlock()
+	time.Sleep(s.Behavior.HandleMetricSleep)
 	return s.Behavior.HandleMetricResult, s.Behavior.HandleMetricError
 }
 
@@ -67,6 +82,7 @@ func (s *NoSessionServer) HandleListEntry(c context.Context, r *listentry.Handle
 	s.Requests.listentryLock.Lock()
 	s.Requests.HandleListEntryRequest = append(s.Requests.HandleListEntryRequest, r)
 	s.Requests.listentryLock.Unlock()
+	time.Sleep(s.Behavior.HandleListEntrySleep)
 	return s.Behavior.HandleListEntryResult, s.Behavior.HandleListEntryError
 }
 
@@ -75,7 +91,77 @@ func (s *NoSessionServer) HandleQuota(c context.Context, r *quota.HandleQuotaReq
 	s.Requests.quotaLock.Lock()
 	s.Requests.HandleQuotaRequest = append(s.Requests.HandleQuotaRequest, r)
 	s.Requests.quotaLock.Unlock()
+	time.Sleep(s.Behavior.HandleQuotaSleep)
 	return s.Behavior.HandleQuotaResult, s.Behavior.HandleQuotaError
+}
+
+// HandleSampleCheck records samplecheck and responds with the programmed response
+func (s *NoSessionServer) HandleSampleCheck(c context.Context, r *samplecheck.HandleSampleCheckRequest) (*adptModel.CheckResult, error) {
+	cc := spyadapter.CapturedCall{
+		Name:      "HandleSampleCheck",
+		Instances: []interface{}{r.Instance},
+	}
+	if s.CapturedCalls == nil {
+		s.CapturedCalls = []spyadapter.CapturedCall{}
+	}
+	s.CapturedCalls = append(s.CapturedCalls, cc)
+	time.Sleep(s.Behavior.HandleSampleCheckSleep)
+	return s.Behavior.HandleSampleCheckResult, s.Behavior.HandleSampleCheckError
+}
+
+// HandleSampleReport records samplereport and responds with the programmed response
+func (s *NoSessionServer) HandleSampleReport(c context.Context, r *samplereport.HandleSampleReportRequest) (*adptModel.ReportResult, error) {
+	cc := spyadapter.CapturedCall{
+		Name:      "HandleSampleReport",
+		Instances: make([]interface{}, len(r.Instances)),
+	}
+	for i, ins := range r.Instances {
+		cc.Instances[i] = ins
+	}
+
+	if s.CapturedCalls == nil {
+		s.CapturedCalls = []spyadapter.CapturedCall{}
+	}
+	s.CapturedCalls = append(s.CapturedCalls, cc)
+	time.Sleep(s.Behavior.HandleSampleReportSleep)
+	return s.Behavior.HandleSampleReportResult, s.Behavior.HandleSampleReportError
+}
+
+// HandleSampleQuota records samplequota and responds with the programmed response
+func (s *NoSessionServer) HandleSampleQuota(c context.Context, r *samplequota.HandleSampleQuotaRequest) (*adptModel.QuotaResult, error) {
+	cc := spyadapter.CapturedCall{
+		Name:      "HandleSampleQuota",
+		Instances: []interface{}{r.Instance},
+	}
+	if s.CapturedCalls == nil {
+		s.CapturedCalls = []spyadapter.CapturedCall{}
+	}
+	s.CapturedCalls = append(s.CapturedCalls, cc)
+	time.Sleep(s.Behavior.HandleSampleQuotaSleep)
+	return s.Behavior.HandleSampleQuotaResult, s.Behavior.HandleSampleQuotaError
+}
+
+// HandleSampleApa records sampleapa and responds with the programmed response
+func (s *NoSessionServer) HandleSampleApa(c context.Context, r *sampleapa.HandleSampleApaRequest) (*sampleapa.OutputMsg, error) {
+	s.CapturedCalls = append(s.CapturedCalls, spyadapter.CapturedCall{
+		Name:      "HandleSampleApa",
+		Instances: []interface{}{r.Instance},
+	})
+	time.Sleep(s.Behavior.HandleSampleApaSleep)
+	return s.Behavior.HandleSampleApaResult, s.Behavior.HandleSampleApaError
+}
+
+// HandleCheckProducer records checkoutput and responds with the programmed response
+func (s *NoSessionServer) HandleCheckProducer(c context.Context,
+	r *checkoutputTmpl.HandleCheckProducerRequest) (*checkoutputTmpl.HandleCheckProducerResponse, error) {
+	s.CapturedCalls = append(s.CapturedCalls, spyadapter.CapturedCall{
+		Name:      "HandleCheckProducer",
+		Instances: []interface{}{r.Instance},
+	})
+	return &checkoutputTmpl.HandleCheckProducerResponse{
+		Result: s.Behavior.HandleSampleCheckResult,
+		Output: s.Behavior.HandleCheckOutput,
+	}, s.Behavior.HandleSampleCheckError
 }
 
 // Addr returns the listening address of the server
@@ -117,6 +203,11 @@ func (s *NoSessionServer) Close() error {
 	}
 
 	return nil
+}
+
+// GetCapturedCalls ...
+func (s *NoSessionServer) GetCapturedCalls() []spyadapter.CapturedCall {
+	return s.CapturedCalls
 }
 
 // GetState returns the adapters observed state.
@@ -222,7 +313,7 @@ func NewNoSessionServer(a *Args) (Server, error) {
 	s := &NoSessionServer{Behavior: a.Behavior, Requests: a.Requests}
 	var err error
 
-	if s.listener, err = net.Listen("tcp", fmt.Sprintf(":%d", 0)); err != nil {
+	if s.listener, err = net.Listen("tcp", fmt.Sprintf(":%d", 50051)); err != nil {
 		_ = s.Close()
 		return nil, fmt.Errorf("unable to listen on socket: %v", err)
 	}
@@ -233,6 +324,11 @@ func NewNoSessionServer(a *Args) (Server, error) {
 	metric.RegisterHandleMetricServiceServer(s.server, s)
 	listentry.RegisterHandleListEntryServiceServer(s.server, s)
 	quota.RegisterHandleQuotaServiceServer(s.server, s)
+	samplereport.RegisterHandleSampleReportServiceServer(s.server, s)
+	samplecheck.RegisterHandleSampleCheckServiceServer(s.server, s)
+	samplequota.RegisterHandleSampleQuotaServiceServer(s.server, s)
+	sampleapa.RegisterHandleSampleApaServiceServer(s.server, s)
+	checkoutputTmpl.RegisterHandleCheckProducerServiceServer(s.server, s)
 
 	return s, nil
 }

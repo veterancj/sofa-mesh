@@ -29,6 +29,7 @@ import (
 
 	"github.com/evanphx/json-patch"
 	"github.com/ghodss/yaml"
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/onsi/gomega"
 	"k8s.io/api/admission/v1beta1"
 	corev1 "k8s.io/api/core/v1"
@@ -42,11 +43,9 @@ import (
 	"k8s.io/helm/pkg/timeconv"
 	"k8s.io/kubernetes/pkg/apis/core"
 
-	"github.com/gogo/protobuf/jsonpb"
-
-	"istio.io/istio/galley/pkg/crd/validation/testcerts"
 	"istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pilot/test/util"
+	"istio.io/istio/pkg/mcp/testing/testcerts"
 )
 
 const (
@@ -117,19 +116,30 @@ ZOQ5UvU=
 -----END CERTIFICATE-----`)
 )
 
+func parseToLabelSelector(t *testing.T, selector string) *metav1.LabelSelector {
+	result, err := metav1.ParseToLabelSelector(selector)
+	if err != nil {
+		t.Errorf("Invalid selector %v: %v", selector, err)
+	}
+
+	return result
+}
+
 func TestInjectRequired(t *testing.T) {
 	podSpec := &corev1.PodSpec{}
 	podSpecHostNetwork := &corev1.PodSpec{
 		HostNetwork: true,
 	}
 	cases := []struct {
-		policy  InjectionPolicy
+		config  *Config
 		podSpec *corev1.PodSpec
 		meta    *metav1.ObjectMeta
 		want    bool
 	}{
 		{
-			policy:  InjectionPolicyEnabled,
+			config: &Config{
+				Policy: InjectionPolicyEnabled,
+			},
 			podSpec: podSpec,
 			meta: &metav1.ObjectMeta{
 				Name:        "no-policy",
@@ -139,7 +149,9 @@ func TestInjectRequired(t *testing.T) {
 			want: true,
 		},
 		{
-			policy:  InjectionPolicyEnabled,
+			config: &Config{
+				Policy: InjectionPolicyEnabled,
+			},
 			podSpec: podSpec,
 			meta: &metav1.ObjectMeta{
 				Name:      "default-policy",
@@ -148,27 +160,33 @@ func TestInjectRequired(t *testing.T) {
 			want: true,
 		},
 		{
-			policy:  InjectionPolicyEnabled,
+			config: &Config{
+				Policy: InjectionPolicyEnabled,
+			},
 			podSpec: podSpec,
 			meta: &metav1.ObjectMeta{
 				Name:        "force-on-policy",
 				Namespace:   "test-namespace",
-				Annotations: map[string]string{sidecarAnnotationPolicyKey: "true"},
+				Annotations: map[string]string{annotationPolicy.name: "true"},
 			},
 			want: true,
 		},
 		{
-			policy:  InjectionPolicyEnabled,
+			config: &Config{
+				Policy: InjectionPolicyEnabled,
+			},
 			podSpec: podSpec,
 			meta: &metav1.ObjectMeta{
 				Name:        "force-off-policy",
 				Namespace:   "test-namespace",
-				Annotations: map[string]string{sidecarAnnotationPolicyKey: "false"},
+				Annotations: map[string]string{annotationPolicy.name: "false"},
 			},
 			want: false,
 		},
 		{
-			policy:  InjectionPolicyDisabled,
+			config: &Config{
+				Policy: InjectionPolicyDisabled,
+			},
 			podSpec: podSpec,
 			meta: &metav1.ObjectMeta{
 				Name:        "no-policy",
@@ -178,7 +196,9 @@ func TestInjectRequired(t *testing.T) {
 			want: false,
 		},
 		{
-			policy:  InjectionPolicyDisabled,
+			config: &Config{
+				Policy: InjectionPolicyDisabled,
+			},
 			podSpec: podSpec,
 			meta: &metav1.ObjectMeta{
 				Name:      "default-policy",
@@ -187,27 +207,33 @@ func TestInjectRequired(t *testing.T) {
 			want: false,
 		},
 		{
-			policy:  InjectionPolicyDisabled,
+			config: &Config{
+				Policy: InjectionPolicyDisabled,
+			},
 			podSpec: podSpec,
 			meta: &metav1.ObjectMeta{
 				Name:        "force-on-policy",
 				Namespace:   "test-namespace",
-				Annotations: map[string]string{sidecarAnnotationPolicyKey: "true"},
+				Annotations: map[string]string{annotationPolicy.name: "true"},
 			},
 			want: true,
 		},
 		{
-			policy:  InjectionPolicyDisabled,
+			config: &Config{
+				Policy: InjectionPolicyDisabled,
+			},
 			podSpec: podSpec,
 			meta: &metav1.ObjectMeta{
 				Name:        "force-off-policy",
 				Namespace:   "test-namespace",
-				Annotations: map[string]string{sidecarAnnotationPolicyKey: "false"},
+				Annotations: map[string]string{annotationPolicy.name: "false"},
 			},
 			want: false,
 		},
 		{
-			policy:  InjectionPolicyEnabled,
+			config: &Config{
+				Policy: InjectionPolicyEnabled,
+			},
 			podSpec: podSpecHostNetwork,
 			meta: &metav1.ObjectMeta{
 				Name:        "force-off-policy",
@@ -216,11 +242,273 @@ func TestInjectRequired(t *testing.T) {
 			},
 			want: false,
 		},
+		{
+			config: &Config{
+				Policy: "wrong_policy",
+			},
+			podSpec: podSpec,
+			meta: &metav1.ObjectMeta{
+				Name:        "wrong-policy",
+				Namespace:   "test-namespace",
+				Annotations: map[string]string{},
+			},
+			want: false,
+		},
+		{
+			config: &Config{
+				Policy:               InjectionPolicyEnabled,
+				AlwaysInjectSelector: []metav1.LabelSelector{{MatchLabels: map[string]string{"foo": "bar"}}},
+			},
+			podSpec: podSpec,
+			meta: &metav1.ObjectMeta{
+				Name:      "policy-enabled-always-inject-no-labels",
+				Namespace: "test-namespace",
+			},
+			want: true,
+		},
+		{
+			config: &Config{
+				Policy:               InjectionPolicyEnabled,
+				AlwaysInjectSelector: []metav1.LabelSelector{{MatchLabels: map[string]string{"foo": "bar"}}},
+			},
+			podSpec: podSpec,
+			meta: &metav1.ObjectMeta{
+				Name:      "policy-enabled-always-inject-with-labels",
+				Namespace: "test-namespace",
+				Labels:    map[string]string{"foo": "bar1"},
+			},
+			want: true,
+		},
+		{
+			config: &Config{
+				Policy:               InjectionPolicyDisabled,
+				AlwaysInjectSelector: []metav1.LabelSelector{{MatchLabels: map[string]string{"foo": "bar"}}},
+			},
+			podSpec: podSpec,
+			meta: &metav1.ObjectMeta{
+				Name:      "policy-disabled-always-inject-no-labels",
+				Namespace: "test-namespace",
+			},
+			want: false,
+		},
+		{
+			config: &Config{
+				Policy:               InjectionPolicyDisabled,
+				AlwaysInjectSelector: []metav1.LabelSelector{{MatchLabels: map[string]string{"foo": "bar"}}},
+			},
+			podSpec: podSpec,
+			meta: &metav1.ObjectMeta{
+				Name:      "policy-disabled-always-inject-with-labels",
+				Namespace: "test-namespace",
+				Labels:    map[string]string{"foo": "bar"},
+			},
+			want: true,
+		},
+		{
+			config: &Config{
+				Policy:              InjectionPolicyEnabled,
+				NeverInjectSelector: []metav1.LabelSelector{{MatchLabels: map[string]string{"foo": "bar"}}},
+			},
+			podSpec: podSpec,
+			meta: &metav1.ObjectMeta{
+				Name:      "policy-enabled-never-inject-no-labels",
+				Namespace: "test-namespace",
+			},
+			want: true,
+		},
+		{
+			config: &Config{
+				Policy:              InjectionPolicyEnabled,
+				NeverInjectSelector: []metav1.LabelSelector{{MatchLabels: map[string]string{"foo": "bar"}}},
+			},
+			podSpec: podSpec,
+			meta: &metav1.ObjectMeta{
+				Name:      "policy-enabled-never-inject-with-labels",
+				Namespace: "test-namespace",
+				Labels:    map[string]string{"foo": "bar"},
+			},
+			want: false,
+		},
+		{
+			config: &Config{
+				Policy:              InjectionPolicyDisabled,
+				NeverInjectSelector: []metav1.LabelSelector{{MatchLabels: map[string]string{"foo": "bar"}}},
+			},
+			podSpec: podSpec,
+			meta: &metav1.ObjectMeta{
+				Name:      "policy-disabled-never-inject-no-labels",
+				Namespace: "test-namespace",
+			},
+			want: false,
+		},
+		{
+			config: &Config{
+				Policy:              InjectionPolicyDisabled,
+				NeverInjectSelector: []metav1.LabelSelector{{MatchLabels: map[string]string{"foo": "bar"}}},
+			},
+			podSpec: podSpec,
+			meta: &metav1.ObjectMeta{
+				Name:      "policy-disabled-never-inject-with-labels",
+				Namespace: "test-namespace",
+				Labels:    map[string]string{"foo": "bar"},
+			},
+			want: false,
+		},
+		{
+			config: &Config{
+				Policy:              InjectionPolicyEnabled,
+				NeverInjectSelector: []metav1.LabelSelector{*parseToLabelSelector(t, "foo")},
+			},
+			podSpec: podSpec,
+			meta: &metav1.ObjectMeta{
+				Name:      "policy-enabled-never-inject-with-empty-label",
+				Namespace: "test-namespace",
+				Labels:    map[string]string{"foo": "", "foo2": "bar2"},
+			},
+			want: false,
+		},
+		{
+			config: &Config{
+				Policy:               InjectionPolicyDisabled,
+				AlwaysInjectSelector: []metav1.LabelSelector{*parseToLabelSelector(t, "foo")},
+			},
+			podSpec: podSpec,
+			meta: &metav1.ObjectMeta{
+				Name:      "policy-disabled-always-inject-with-empty-label",
+				Namespace: "test-namespace",
+				Labels:    map[string]string{"foo": "", "foo2": "bar2"},
+			},
+			want: true,
+		},
+		{
+			config: &Config{
+				Policy:               InjectionPolicyDisabled,
+				AlwaysInjectSelector: []metav1.LabelSelector{*parseToLabelSelector(t, "always")},
+				NeverInjectSelector:  []metav1.LabelSelector{*parseToLabelSelector(t, "never")},
+			},
+			podSpec: podSpec,
+			meta: &metav1.ObjectMeta{
+				Name:      "policy-disabled-always-never-inject-with-label-returns-true",
+				Namespace: "test-namespace",
+				Labels:    map[string]string{"always": "bar", "foo2": "bar2"},
+			},
+			want: true,
+		},
+		{
+			config: &Config{
+				Policy:               InjectionPolicyDisabled,
+				AlwaysInjectSelector: []metav1.LabelSelector{*parseToLabelSelector(t, "always")},
+				NeverInjectSelector:  []metav1.LabelSelector{*parseToLabelSelector(t, "never")},
+			},
+			podSpec: podSpec,
+			meta: &metav1.ObjectMeta{
+				Name:      "policy-disabled-always-never-inject-with-label-returns-false",
+				Namespace: "test-namespace",
+				Labels:    map[string]string{"never": "bar", "foo2": "bar2"},
+			},
+			want: false,
+		},
+		{
+			config: &Config{
+				Policy:               InjectionPolicyDisabled,
+				AlwaysInjectSelector: []metav1.LabelSelector{*parseToLabelSelector(t, "always")},
+				NeverInjectSelector:  []metav1.LabelSelector{*parseToLabelSelector(t, "never")},
+			},
+			podSpec: podSpec,
+			meta: &metav1.ObjectMeta{
+				Name:      "policy-disabled-always-never-inject-with-both-labels",
+				Namespace: "test-namespace",
+				Labels:    map[string]string{"always": "bar", "never": "bar2"},
+			},
+			want: false,
+		},
+		{
+			config: &Config{
+				Policy:              InjectionPolicyEnabled,
+				NeverInjectSelector: []metav1.LabelSelector{*parseToLabelSelector(t, "foo")},
+			},
+			podSpec: podSpec,
+			meta: &metav1.ObjectMeta{
+				Name:        "policy-enabled-annotation-true-never-inject",
+				Namespace:   "test-namespace",
+				Annotations: map[string]string{annotationPolicy.name: "true"},
+				Labels:      map[string]string{"foo": "", "foo2": "bar2"},
+			},
+			want: true,
+		},
+		{
+			config: &Config{
+				Policy:               InjectionPolicyEnabled,
+				AlwaysInjectSelector: []metav1.LabelSelector{*parseToLabelSelector(t, "foo")},
+			},
+			podSpec: podSpec,
+			meta: &metav1.ObjectMeta{
+				Name:        "policy-enabled-annotation-false-always-inject",
+				Namespace:   "test-namespace",
+				Annotations: map[string]string{annotationPolicy.name: "false"},
+				Labels:      map[string]string{"foo": "", "foo2": "bar2"},
+			},
+			want: false,
+		},
+		{
+			config: &Config{
+				Policy:               InjectionPolicyDisabled,
+				AlwaysInjectSelector: []metav1.LabelSelector{*parseToLabelSelector(t, "foo")},
+			},
+			podSpec: podSpec,
+			meta: &metav1.ObjectMeta{
+				Name:        "policy-disabled-annotation-false-always-inject",
+				Namespace:   "test-namespace",
+				Annotations: map[string]string{annotationPolicy.name: "false"},
+				Labels:      map[string]string{"foo": "", "foo2": "bar2"},
+			},
+			want: false,
+		},
+		{
+			config: &Config{
+				Policy:              InjectionPolicyEnabled,
+				NeverInjectSelector: []metav1.LabelSelector{*parseToLabelSelector(t, "foo"), *parseToLabelSelector(t, "bar")},
+			},
+			podSpec: podSpec,
+			meta: &metav1.ObjectMeta{
+				Name:      "policy-enabled-never-inject-multiple-labels",
+				Namespace: "test-namespace",
+				Labels:    map[string]string{"label1": "", "bar": "anything"},
+			},
+			want: false,
+		},
+		{
+			config: &Config{
+				Policy:               InjectionPolicyDisabled,
+				AlwaysInjectSelector: []metav1.LabelSelector{*parseToLabelSelector(t, "foo"), *parseToLabelSelector(t, "bar")},
+			},
+			podSpec: podSpec,
+			meta: &metav1.ObjectMeta{
+				Name:      "policy-enabled-always-inject-multiple-labels",
+				Namespace: "test-namespace",
+				Labels:    map[string]string{"label1": "", "bar": "anything"},
+			},
+			want: true,
+		},
+		{
+			config: &Config{
+				Policy:              InjectionPolicyDisabled,
+				NeverInjectSelector: []metav1.LabelSelector{*parseToLabelSelector(t, "foo")},
+			},
+			podSpec: podSpec,
+			meta: &metav1.ObjectMeta{
+				Name:        "policy-disabled-annotation-true-never-inject",
+				Namespace:   "test-namespace",
+				Annotations: map[string]string{annotationPolicy.name: "true"},
+				Labels:      map[string]string{"foo": "", "foo2": "bar2"},
+			},
+			want: true,
+		},
 	}
 
 	for _, c := range cases {
-		if got := injectRequired(ignoredNamespaces, c.policy, c.podSpec, c.meta); got != c.want {
-			t.Errorf("injectRequired(%v, %v) got %v want %v", c.policy, c.meta, got, c.want)
+		if got := injectRequired(ignoredNamespaces, c.config, c.podSpec, c.meta); got != c.want {
+			t.Errorf("injectRequired(%v, %v) got %v want %v", c.config, c.meta, got, c.want)
 		}
 	}
 }
@@ -418,15 +706,27 @@ func TestHelmInject(t *testing.T) {
 			inputFile: "traffic-annotations-empty-includes.yaml",
 			wantFile:  "traffic-annotations-empty-includes.yaml.injected",
 		},
+		{
+			// Verifies that the status port annotation overrides the default.
+			inputFile: "status_annotations.yaml",
+			wantFile:  "status_annotations.yaml.injected",
+		},
+		{
+			// Verifies that the resource annotation overrides the default.
+			inputFile: "resource_annotations.yaml",
+			wantFile:  "resource_annotations.yaml.injected",
+		},
 	}
 
-	for _, c := range cases {
-		input := filepath.Join("testdata/webhook", c.inputFile)
-		want := filepath.Join("testdata/webhook", c.wantFile)
-		t.Run(c.inputFile, func(t *testing.T) {
+	for ci, c := range cases {
+		inputFile := filepath.Join("testdata/webhook", c.inputFile)
+		wantFile := filepath.Join("testdata/webhook", c.wantFile)
+		testName := fmt.Sprintf("[%02d] %s", ci, c.wantFile)
+		t.Run(testName, func(t *testing.T) {
 			// Split multi-part yaml documents. Input and output will have the same number of parts.
-			inputYAMLs := splitYamlDoc(input, t)
-			wantYAMLs := splitYamlDoc(want, t)
+			inputYAMLs := splitYamlFile(inputFile, t)
+			wantYAMLs := splitYamlFile(wantFile, t)
+			goldenYAMLs := make([][]byte, len(inputYAMLs))
 
 			for i := 0; i < len(inputYAMLs); i++ {
 				t.Run(fmt.Sprintf("yamlPart[%d]", i), func(t *testing.T) {
@@ -443,7 +743,7 @@ func TestHelmInject(t *testing.T) {
 					// Generate the patch.  At runtime, the webhook would actually generate the patch against the
 					// pod configuration. But since our input files are deployments, rather than actual pod instances,
 					// we have to apply the patch to the template portion of the deployment only.
-					templateJSON := toJSON(inputDeployment.Spec.Template, t)
+					templateJSON := convertToJSON(inputDeployment.Spec.Template, t)
 					got := webhook.inject(&v1beta1.AdmissionReview{
 						Request: &v1beta1.AdmissionRequest{
 							Object: runtime.RawExtension{
@@ -464,9 +764,16 @@ func TestHelmInject(t *testing.T) {
 						t.Fatal(err)
 					}
 
-					// Compare the patched deployment with the one we expected.
-					compareDeployments(patchedDeployment, wantDeployment, c.wantFile, t)
+					if !util.Refresh() {
+						// Compare the patched deployment with the one we expected.
+						compareDeployments(patchedDeployment, wantDeployment, c.wantFile, t)
+					} else {
+						goldenYAMLs[i] = deploymentToYaml(patchedDeployment, t)
+					}
 				})
+			}
+			if util.Refresh() {
+				writeYamlsToGoldenFile(goldenYAMLs, wantFile, t)
 			}
 		})
 	}
@@ -494,7 +801,7 @@ func createTestWebhookFromHelmConfigMap(t *testing.T) *Webhook {
 	t.Helper()
 	// Load the config map with Helm. This simulates what will be done at runtime, by replacing function calls and
 	// variables and generating a new configmap for use by the injection logic.
-	sidecarTemplate := string(loadConfigMapWithHelm(t))
+	sidecarTemplate := loadConfigMapWithHelm(t)
 	return createTestWebhook(sidecarTemplate)
 }
 
@@ -540,7 +847,7 @@ func loadConfigMapWithHelm(t *testing.T) string {
 	}
 	cfg, ok := cfgMap.Data["config"]
 	if !ok {
-		t.Fatal("ConfigMap yaml misisng config field")
+		t.Fatal("ConfigMap yaml missing config field")
 	}
 
 	body := &configMapBody{}
@@ -558,10 +865,15 @@ func getHelmValues(t *testing.T) string {
 	return string(util.ReadFile(valuesFile, t))
 }
 
-func splitYamlDoc(yamlFile string, t *testing.T) [][]byte {
+func splitYamlFile(yamlFile string, t *testing.T) [][]byte {
 	t.Helper()
-	yamlDoc := util.ReadFile(yamlFile, t)
-	stringParts := strings.Split(string(yamlDoc), yamlSeparator)
+	yamlBytes := util.ReadFile(yamlFile, t)
+	return splitYamlBytes(yamlBytes, t)
+}
+
+func splitYamlBytes(yaml []byte, t *testing.T) [][]byte {
+	t.Helper()
+	stringParts := strings.Split(string(yaml), yamlSeparator)
 	byteParts := make([][]byte, 0)
 	for _, stringPart := range stringParts {
 		byteParts = append(byteParts, getInjectableYamlDocs(stringPart, t)...)
@@ -572,6 +884,16 @@ func splitYamlDoc(yamlFile string, t *testing.T) [][]byte {
 	return byteParts
 }
 
+func writeYamlsToGoldenFile(yamls [][]byte, goldenFile string, t *testing.T) {
+	content := make([]byte, 0)
+	for _, part := range yamls {
+		content = append(content, part...)
+		content = append(content, []byte(yamlSeparator)...)
+		content = append(content, '\n')
+	}
+
+	util.RefreshGoldenFile(content, goldenFile, t)
+}
 func getInjectableYamlDocs(yamlDoc string, t *testing.T) [][]byte {
 	t.Helper()
 	m := make(map[string]interface{})
@@ -617,7 +939,7 @@ func getInjectableYamlDocs(yamlDoc string, t *testing.T) [][]byte {
 	}
 }
 
-func toJSON(i interface{}, t *testing.T) []byte {
+func convertToJSON(i interface{}, t *testing.T) []byte {
 	t.Helper()
 	outputJSON, err := json.Marshal(i)
 	if err != nil {
@@ -669,10 +991,19 @@ func jsonToDeployment(deploymentJSON []byte, t *testing.T) *extv1beta1.Deploymen
 	return &deployment
 }
 
+func deploymentToYaml(deployment *extv1beta1.Deployment, t *testing.T) []byte {
+	t.Helper()
+	yaml, err := yaml.Marshal(deployment)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return yaml
+}
+
 func compareDeployments(got, want *extv1beta1.Deployment, name string, t *testing.T) {
 	t.Helper()
 	// Scrub unimportant fields that tend to differ.
-	annotations(got)[sidecarAnnotationStatusKey] = annotations(want)[sidecarAnnotationStatusKey]
+	annotations(got)[annotationStatus.name] = annotations(want)[annotationStatus.name]
 	gotIstioCerts := istioCerts(got)
 	wantIstioCerts := istioCerts(want)
 	gotIstioCerts.Secret.DefaultMode = wantIstioCerts.Secret.DefaultMode
@@ -683,14 +1014,25 @@ func compareDeployments(got, want *extv1beta1.Deployment, name string, t *testin
 	gotIstioInit.TerminationMessagePolicy = wantIstioInit.TerminationMessagePolicy
 	gotIstioInit.SecurityContext.Privileged = wantIstioInit.SecurityContext.Privileged
 	gotIstioProxy := istioProxy(got, t)
+
 	wantIstioProxy := istioProxy(want, t)
+
 	gotIstioProxy.Image = wantIstioProxy.Image
 	gotIstioProxy.TerminationMessagePath = wantIstioProxy.TerminationMessagePath
 	gotIstioProxy.TerminationMessagePolicy = wantIstioProxy.TerminationMessagePolicy
+
 	envVars := make([]corev1.EnvVar, 0)
 	for _, env := range gotIstioProxy.Env {
 		if env.ValueFrom != nil {
 			env.ValueFrom.FieldRef.APIVersion = ""
+		}
+		// check if metajson is encoded correctly
+		if strings.HasPrefix(env.Name, "ISTIO_METAJSON_") {
+			var mm map[string]string
+			if err := json.Unmarshal([]byte(env.Value), &mm); err != nil {
+				t.Fatalf("unable to unmarshal %s: %v", env.Value, err)
+			}
+			continue
 		}
 		envVars = append(envVars, env)
 	}
@@ -765,7 +1107,7 @@ func makeTestData(t testing.TB, skip bool) []byte {
 	}
 
 	if skip {
-		pod.ObjectMeta.Annotations[sidecarAnnotationPolicyKey] = "false"
+		pod.ObjectMeta.Annotations[annotationPolicy.name] = "false"
 	}
 
 	raw, err := json.Marshal(&pod)
@@ -876,10 +1218,7 @@ func TestRunAndServe(t *testing.T) {
          "name":"istio-init",
          "resources":{
 
-         },
-         "terminationMessagePath":"/dev/termination-log",
-         "terminationMessagePolicy":"File",
-         "imagePullPolicy":"IfNotPresent"
+         }
       }
    },
    {
@@ -889,20 +1228,14 @@ func TestRunAndServe(t *testing.T) {
          "name":"istio-proxy",
          "resources":{
 
-         },
-         "terminationMessagePath":"/dev/termination-log",
-         "terminationMessagePolicy":"File",
-         "imagePullPolicy":"IfNotPresent"
+         }
       }
    },
    {
       "op":"add",
       "path":"/spec/volumes/-",
       "value":{
-         "name":"istio-envoy",
-         "emptyDir":{
-
-         }
+         "name":"istio-envoy"
       }
    },
    {

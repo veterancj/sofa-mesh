@@ -1,16 +1,16 @@
-//  Copyright 2018 Istio Authors
+// Copyright 2018 Istio Authors
 //
-//  Licensed under the Apache License, Version 2.0 (the "License");
-//  you may not use this file except in compliance with the License.
-//  You may obtain a copy of the License at
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
 //
-//      http://www.apache.org/licenses/LICENSE-2.0
+//     http://www.apache.org/licenses/LICENSE-2.0
 //
-//  Unless required by applicable law or agreed to in writing, software
-//  distributed under the License is distributed on an "AS IS" BASIS,
-//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-//  See the License for the specific language governing permissions and
-//  limitations under the License.
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package metadata
 
@@ -18,7 +18,6 @@ import (
 	"testing"
 
 	pgogo "github.com/gogo/protobuf/proto"
-	plang "github.com/golang/protobuf/proto"
 )
 
 func TestTypes_Info(t *testing.T) {
@@ -36,12 +35,7 @@ func TestTypes_Info(t *testing.T) {
 func TestTypes_NewProtoInstance(t *testing.T) {
 	for _, info := range Types.All() {
 		p := info.NewProtoInstance()
-		var name string
-		if info.IsGogo {
-			name = pgogo.MessageName(p)
-		} else {
-			name = plang.MessageName(p)
-		}
+		name := pgogo.MessageName(p)
 		if name != info.TypeURL.MessageName() {
 			t.Fatalf("Name/TypeURL mismatch: TypeURL:%v, Name:%v", info.TypeURL, name)
 		}

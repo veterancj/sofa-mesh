@@ -18,8 +18,6 @@ import (
 	"net"
 	"strings"
 
-	"time"
-
 	networking "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pilot/pkg/model"
 )
@@ -32,7 +30,10 @@ func convertPort(port *networking.Port) *model.Port {
 	}
 }
 
-func convertServices(serviceEntry *networking.ServiceEntry, creationTime time.Time) []*model.Service {
+func convertServices(config model.Config) []*model.Service {
+	serviceEntry := config.Spec.(*networking.ServiceEntry)
+	creationTime := config.CreationTimestamp
+
 	out := make([]*model.Service, 0)
 
 	var resolution model.Resolution
@@ -67,6 +68,11 @@ func convertServices(serviceEntry *networking.ServiceEntry, creationTime time.Ti
 						Address:      newAddress,
 						Ports:        svcPorts,
 						Resolution:   resolution,
+						Attributes: model.ServiceAttributes{
+							Name:        host,
+							Namespace:   config.Namespace,
+							ConfigScope: serviceEntry.ConfigScope,
+						},
 					})
 				} else if net.ParseIP(address) != nil {
 					out = append(out, &model.Service{
@@ -76,6 +82,11 @@ func convertServices(serviceEntry *networking.ServiceEntry, creationTime time.Ti
 						Address:      address,
 						Ports:        svcPorts,
 						Resolution:   resolution,
+						Attributes: model.ServiceAttributes{
+							Name:        host,
+							Namespace:   config.Namespace,
+							ConfigScope: serviceEntry.ConfigScope,
+						},
 					})
 				}
 			}
@@ -87,6 +98,11 @@ func convertServices(serviceEntry *networking.ServiceEntry, creationTime time.Ti
 				Address:      model.UnspecifiedIP,
 				Ports:        svcPorts,
 				Resolution:   resolution,
+				Attributes: model.ServiceAttributes{
+					Name:        host,
+					Namespace:   config.Namespace,
+					ConfigScope: serviceEntry.ConfigScope,
+				},
 			})
 		}
 	}
@@ -117,16 +133,20 @@ func convertEndpoint(service *model.Service, servicePort *networking.Port,
 			Family:      family,
 			Port:        int(instancePort),
 			ServicePort: convertPort(servicePort),
+			Network:     endpoint.Network,
+			Locality:    endpoint.Locality,
+			LbWeight:    endpoint.Weight,
 		},
-		// TODO AvailabilityZone, ServiceAccount
+		// TODO ServiceAccount
 		Service: service,
 		Labels:  endpoint.Labels,
 	}
 }
 
-func convertInstances(serviceEntry *networking.ServiceEntry, creationTime time.Time) []*model.ServiceInstance {
+func convertInstances(config model.Config) []*model.ServiceInstance {
 	out := make([]*model.ServiceInstance, 0)
-	for _, service := range convertServices(serviceEntry, creationTime) {
+	serviceEntry := config.Spec.(*networking.ServiceEntry)
+	for _, service := range convertServices(config) {
 		for _, serviceEntryPort := range serviceEntry.Ports {
 			if len(serviceEntry.Endpoints) == 0 &&
 				serviceEntry.Resolution == networking.ServiceEntry_DNS {
@@ -136,11 +156,11 @@ func convertInstances(serviceEntry *networking.ServiceEntry, creationTime time.T
 				// multiple services (one for each host)
 				out = append(out, &model.ServiceInstance{
 					Endpoint: model.NetworkEndpoint{
-						Address:     service.Hostname.String(),
+						Address:     string(service.Hostname),
 						Port:        int(serviceEntryPort.Number),
 						ServicePort: convertPort(serviceEntryPort),
 					},
-					// TODO AvailabilityZone, ServiceAccount
+					// TODO ServiceAccount
 					Service: service,
 					Labels:  nil,
 				})

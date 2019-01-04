@@ -124,21 +124,24 @@ func validateFlags() error {
 }
 
 var (
-	hub                  string
-	tag                  string
-	sidecarProxyUID      uint64
-	verbosity            int
-	versionStr           string // override build version
-	enableCoreDump       bool
-	imagePullPolicy      string
-	includeOutboundPorts string
-	excludeOutboundPorts string
-	includeIPRanges      string
-	excludeIPRanges      string
-	includeInboundPorts  string
-	excludeInboundPorts  string
-	debugMode            bool
-	emitTemplate         bool
+	hub                          string
+	tag                          string
+	sidecarProxyUID              uint64
+	verbosity                    int
+	versionStr                   string // override build version
+	enableCoreDump               bool
+	rewriteAppHTTPProbe          bool
+	imagePullPolicy              string
+	statusPort                   int
+	readinessInitialDelaySeconds uint32
+	readinessPeriodSeconds       uint32
+	readinessFailureThreshold    uint32
+	includeIPRanges              string
+	excludeIPRanges              string
+	includeInboundPorts          string
+	excludeInboundPorts          string
+	debugMode                    bool
+	emitTemplate                 bool
 
 	inFilename          string
 	outFilename         string
@@ -146,6 +149,8 @@ var (
 	meshConfigMapName   string
 	injectConfigFile    string
 	injectConfigMapName string
+	includeOutboundPorts string
+	excludeOutboundPorts string
 )
 
 var (
@@ -259,7 +264,7 @@ istioctl kube-inject -f deployment.yaml -o deployment-injected.yaml --injectConf
 			// hub and tag params only work with ISTIOCTL_USE_BUILTIN_DEFAULTS
 			// so must be specified together. hub and tag no longer have defaults.
 			if hub != "" || tag != "" {
-				// ISTIOCTL_USE_BUILTIN_DEFAULTS is used to have legacy behaviour.
+				// ISTIOCTL_USE_BUILTIN_DEFAULTS is used to have legacy behavior.
 				if !getBoolEnv("ISTIOCTL_USE_BUILTIN_DEFAULTS", false) {
 					return errors.New("one of injectConfigFile or injectConfigMapName is required\n" +
 						"use the following command to get the current injector file\n" +
@@ -272,21 +277,26 @@ istioctl kube-inject -f deployment.yaml -o deployment-injected.yaml --injectConf
 				}
 
 				if sidecarTemplate, err = inject.GenerateTemplateFromParams(&inject.Params{
-					InitImage:           inject.InitImageName(hub, tag, debugMode),
-					ProxyImage:          inject.ProxyImageName(hub, tag, debugMode),
-					Verbosity:           verbosity,
-					SidecarProxyUID:     sidecarProxyUID,
-					Version:             versionStr,
-					EnableCoreDump:      enableCoreDump,
-					Mesh:                meshConfig,
-					ImagePullPolicy:     imagePullPolicy,
+					InitImage:                    inject.InitImageName(hub, tag, debugMode),
+					ProxyImage:                   inject.ProxyImageName(hub, tag, debugMode),
+					RewriteAppHTTPProbe:          rewriteAppHTTPProbe,
+					Verbosity:                    verbosity,
+					SidecarProxyUID:              sidecarProxyUID,
+					Version:                      versionStr,
+					EnableCoreDump:               enableCoreDump,
+					Mesh:                         meshConfig,
+					ImagePullPolicy:              imagePullPolicy,
+					StatusPort:                   statusPort,
+					ReadinessInitialDelaySeconds: readinessInitialDelaySeconds,
+					ReadinessPeriodSeconds:       readinessPeriodSeconds,
+					ReadinessFailureThreshold:    readinessFailureThreshold,
+					IncludeIPRanges:              includeIPRanges,
+					ExcludeIPRanges:              excludeIPRanges,
+					IncludeInboundPorts:          includeInboundPorts,
+					ExcludeInboundPorts:          excludeInboundPorts,
+					DebugMode:                    debugMode,
 					IncludeOutboundPorts: includeOutboundPorts,
 					ExcludeOutboundPorts: excludeOutboundPorts,
-					IncludeIPRanges:     includeIPRanges,
-					ExcludeIPRanges:     excludeIPRanges,
-					IncludeInboundPorts: includeInboundPorts,
-					ExcludeInboundPorts: excludeInboundPorts,
-					DebugMode:           debugMode,
 				}); err != nil {
 					return err
 				}
@@ -348,7 +358,8 @@ func init() {
 	injectCmd.PersistentFlags().StringVar(&injectConfigFile, "injectConfigFile", "",
 		"injection configuration filename. Cannot be used with --injectConfigMapName")
 
-	injectCmd.PersistentFlags().BoolVar(&emitTemplate, "emitTemplate", false, "Emit sidecar template based on parameterized flags")
+	injectCmd.PersistentFlags().BoolVar(&emitTemplate, "emitTemplate", false,
+		"Emit sidecar template based on parameterized flags")
 	_ = injectCmd.PersistentFlags().MarkHidden("emitTemplate")
 
 	injectCmd.PersistentFlags().StringVarP(&inFilename, "filename", "f",
@@ -369,16 +380,20 @@ func init() {
 	injectCmd.PersistentFlags().BoolVar(&enableCoreDump, "coreDump",
 		true, "Enable/Disable core dumps in injected Envoy sidecar (--coreDump=true affects "+
 			"all pods in a node and should only be used the cluster admin)")
+	injectCmd.PersistentFlags().BoolVar(&rewriteAppHTTPProbe, "rewriteAppProbe", false, "Whether injector "+
+		"rewrites the liveness health check to let kubelet health check the app when mtls is on.")
 	injectCmd.PersistentFlags().StringVar(&imagePullPolicy, "imagePullPolicy", inject.DefaultImagePullPolicy,
 		"Sets the container image pull policy. Valid options are Always,IfNotPresent,Never."+
 			"The default policy is IfNotPresent.")
-	injectCmd.PersistentFlags().StringVar(&includeOutboundPorts, "includeOutboundPorts", inject.DefaultIncludeOutboundPorts,
-		"Comma separated list of outbound ports for which traffic is to be redirected to Envoy. All ports can "+
-			"be redirected with the wildcard character '*'.")
-	injectCmd.PersistentFlags().StringVar(&excludeOutboundPorts, "excludeOutboundPorts", "",
-		"Comma separated list of outbound ports. If set, inbound traffic will not be redirected for those "+
-			"ports. Exclusions are only applied if configured to redirect all outbound traffic. By default, no ports "+
-			"are excluded.")
+	injectCmd.PersistentFlags().IntVar(&statusPort, inject.StatusPortCmdFlagName, inject.DefaultStatusPort,
+		"HTTP Port on which to serve pilot agent status. The path /healthz/ can be used for health checking. "+
+			"If zero, agent status will not be provided.")
+	injectCmd.PersistentFlags().Uint32Var(&readinessInitialDelaySeconds, "readinessInitialDelaySeconds", inject.DefaultReadinessInitialDelaySeconds,
+		"The initial delay (in seconds) for the readiness probe.")
+	injectCmd.PersistentFlags().Uint32Var(&readinessPeriodSeconds, "readinessPeriodSeconds", inject.DefaultReadinessPeriodSeconds,
+		"The period between readiness probes (in seconds).")
+	injectCmd.PersistentFlags().Uint32Var(&readinessFailureThreshold, "readinessFailureThreshold", inject.DefaultReadinessFailureThreshold,
+		"The threshold for successive failed readiness probes.")
 	injectCmd.PersistentFlags().StringVar(&includeIPRanges, "includeIPRanges", inject.DefaultIncludeIPRanges,
 		"Comma separated list of IP ranges in CIDR form. If set, only redirect outbound traffic to Envoy for "+
 			"these IP ranges. All outbound traffic can be redirected with the wildcard character '*'.")
@@ -395,6 +410,13 @@ func init() {
 			"are excluded.")
 	injectCmd.PersistentFlags().BoolVar(&debugMode, "debug", false, "Use debug images and settings for the sidecar")
 
+	injectCmd.PersistentFlags().StringVar(&includeOutboundPorts, "includeOutboundPorts", inject.DefaultIncludeOutboundPorts,
+		"Comma separated list of outbound ports for which traffic is to be redirected to Envoy. All ports can "+
+			"be redirected with the wildcard character '*'.")
+	injectCmd.PersistentFlags().StringVar(&excludeOutboundPorts, "excludeOutboundPorts", "",
+		"Comma separated list of outbound ports. If set, inbound traffic will not be redirected for those "+
+			"ports. Exclusions are only applied if configured to redirect all outbound traffic. By default, no ports "+
+			"are excluded.")
 	deprecatedFlags := []string{"coreDump", "imagePullPolicy", "includeIPRanges", "excludeIPRanges", "hub", "tag",
 		"includeInboundPorts", "excludeInboundPorts", "debug", "verbosity", "sidecarProxyUID", "setVersionString"}
 	for _, opt := range deprecatedFlags {

@@ -27,6 +27,7 @@ import (
 	mixerpb "istio.io/api/mixer/v1"
 	"istio.io/istio/mixer/pkg/adapter"
 	"istio.io/istio/mixer/pkg/attribute"
+	"istio.io/istio/mixer/pkg/loadshedding"
 	"istio.io/istio/mixer/pkg/pool"
 	"istio.io/istio/mixer/pkg/runtime/dispatcher"
 	"istio.io/istio/mixer/pkg/status"
@@ -48,12 +49,12 @@ func (bs *benchState) createGRPCServer() (string, error) {
 	}
 
 	// get everything wired up
-	bs.gs = grpc.NewServer(grpc.MaxConcurrentStreams(256), grpc.MaxMsgSize(1024*1024))
+	bs.gs = grpc.NewServer(grpc.MaxConcurrentStreams(256), grpc.MaxRecvMsgSize(1024*1024))
 
 	bs.gp = pool.NewGoroutinePool(32, false)
 	bs.gp.AddWorkers(32)
 
-	ms := NewGRPCServer(bs, bs.gp, nil)
+	ms := NewGRPCServer(bs, bs.gp, nil, loadshedding.NewThrottler(loadshedding.DefaultOptions()))
 	bs.s = ms.(*grpcServer)
 	mixerpb.RegisterMixerServer(bs.gs, bs.s)
 

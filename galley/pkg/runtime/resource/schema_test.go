@@ -1,16 +1,16 @@
-//  Copyright 2018 Istio Authors
+// Copyright 2018 Istio Authors
 //
-//  Licensed under the Apache License, Version 2.0 (the "License");
-//  you may not use this file except in compliance with the License.
-//  You may obtain a copy of the License at
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
 //
-//      http://www.apache.org/licenses/LICENSE-2.0
+//     http://www.apache.org/licenses/LICENSE-2.0
 //
-//  Unless required by applicable law or agreed to in writing, software
-//  distributed under the License is distributed on an "AS IS" BASIS,
-//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-//  See the License for the specific language governing permissions and
-//  limitations under the License.
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package resource
 
@@ -20,20 +20,18 @@ import (
 	"strings"
 	"testing"
 
-	// Pull in gogo & golang Empty
+	// Pull in gogo well-known types
 	_ "github.com/gogo/protobuf/types"
-	_ "github.com/golang/protobuf/ptypes/empty"
-	_ "github.com/golang/protobuf/ptypes/struct"
 )
 
 func TestSchema_All(t *testing.T) {
-	// Test Schema.All in isolation, as the rest of the tests depend on it.
+	// Test schema.All in isolation, as the rest of the tests depend on it.
 	s := Schema{
 		byURL: make(map[string]Info),
 	}
 
-	foo := Info{TypeURL: TypeURL{"zoo.tar.com/foo"}, IsGogo: false}
-	bar := Info{TypeURL: TypeURL{"zoo.tar.com/bar"}, IsGogo: false}
+	foo := Info{TypeURL: TypeURL{"zoo.tar.com/foo"}}
+	bar := Info{TypeURL: TypeURL{"zoo.tar.com/bar"}}
 	s.byURL[foo.TypeURL.String()] = foo
 	s.byURL[bar.TypeURL.String()] = bar
 
@@ -58,16 +56,8 @@ func TestSchema_All(t *testing.T) {
 
 func TestSchemaBuilder_Register_Success(t *testing.T) {
 	b := NewSchemaBuilder()
-	b.Register("type.googleapis.com/google.protobuf.Empty", false)
+	b.Register("type.googleapis.com/google.protobuf.Empty")
 	s := b.Build()
-
-	if _, found := s.byURL["type.googleapis.com/google.protobuf.Empty"]; !found {
-		t.Fatalf("Empty type should have been registered")
-	}
-
-	b = NewSchemaBuilder()
-	b.Register("type.googleapis.com/google.protobuf.Empty", true)
-	s = b.Build()
 
 	if _, found := s.byURL["type.googleapis.com/google.protobuf.Empty"]; !found {
 		t.Fatalf("Empty type should have been registered")
@@ -82,8 +72,8 @@ func TestRegister_DoubleRegistrationPanic(t *testing.T) {
 	}()
 
 	b := NewSchemaBuilder()
-	b.Register("type.googleapis.com/google.protobuf.Empty", true)
-	b.Register("type.googleapis.com/google.protobuf.Empty", true)
+	b.Register("type.googleapis.com/google.protobuf.Empty")
+	b.Register("type.googleapis.com/google.protobuf.Empty")
 }
 
 func TestRegister_UnknownProto_Panic(t *testing.T) {
@@ -94,7 +84,7 @@ func TestRegister_UnknownProto_Panic(t *testing.T) {
 	}()
 
 	b := NewSchemaBuilder()
-	b.Register("type.googleapis.com/unknown", true)
+	b.Register("type.googleapis.com/unknown")
 }
 
 func TestRegister_BadTypeURL(t *testing.T) {
@@ -105,12 +95,12 @@ func TestRegister_BadTypeURL(t *testing.T) {
 	}()
 
 	b := NewSchemaBuilder()
-	b.Register("ftp://type.googleapis.com/google.protobuf.Empty", true)
+	b.Register("ftp://type.googleapis.com/google.protobuf.Empty")
 }
 
 func TestSchema_Lookup(t *testing.T) {
 	b := NewSchemaBuilder()
-	b.Register("type.googleapis.com/google.protobuf.Empty", false)
+	b.Register("type.googleapis.com/google.protobuf.Empty")
 	s := b.Build()
 
 	_, ok := s.Lookup("type.googleapis.com/google.protobuf.Empty")
@@ -136,7 +126,7 @@ func TestSchema_Get_Success(t *testing.T) {
 	}()
 
 	b := NewSchemaBuilder()
-	b.Register("type.googleapis.com/google.protobuf.Empty", false)
+	b.Register("type.googleapis.com/google.protobuf.Empty")
 	s := b.Build()
 
 	i := s.Get("type.googleapis.com/google.protobuf.Empty")
@@ -153,7 +143,7 @@ func TestSchema_Get_Panic(t *testing.T) {
 	}()
 
 	b := NewSchemaBuilder()
-	b.Register("type.googleapis.com/google.protobuf.Empty", false)
+	b.Register("type.googleapis.com/google.protobuf.Empty")
 	s := b.Build()
 
 	_ = s.Get("type.googleapis.com/foo")
@@ -161,8 +151,8 @@ func TestSchema_Get_Panic(t *testing.T) {
 
 func TestSchema_TypeURLs(t *testing.T) {
 	b := NewSchemaBuilder()
-	b.Register("type.googleapis.com/google.protobuf.Empty", false)
-	b.Register("type.googleapis.com/google.protobuf.Struct", false)
+	b.Register("type.googleapis.com/google.protobuf.Empty")
+	b.Register("type.googleapis.com/google.protobuf.Struct")
 	s := b.Build()
 
 	actual := s.TypeURLs()
@@ -182,12 +172,7 @@ func TestSchema_TypeURLs(t *testing.T) {
 //func TestSchema_NewProtoInstance(t *testing.T) {
 //	for _, info := range Types.All() {
 //		p := info.NewProtoInstance()
-//		var name string
-//		if info.IsGogo {
-//			name = pgogo.MessageName(p)
-//		} else {
-//			name = plang.MessageName(p)
-//		}
+//		name := plang.MessageName(p)
 //		if name != info.TypeURL.MessageName() {
 //			t.Fatalf("Name/TypeURL mismatch: TypeURL:%v, Name:%v", info.TypeURL, name)
 //		}

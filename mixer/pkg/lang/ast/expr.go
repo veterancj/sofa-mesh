@@ -271,7 +271,7 @@ func generateVarName(selectors []string) string {
 	// a.b.c.d is a selector expression
 	// normally one walks down a chain of objects
 	// we have chosen an internally flat namespace, therefore
-	// a.b.c.d if an identifer. converts
+	// a.b.c.d if an identifier. converts
 	// a.b.c.d --> $a.b.c.d
 	// for selectorExpr length is guaranteed to be at least 2.
 	ww := pool.GetBuffer()
@@ -369,7 +369,7 @@ func process(ex ast.Expr, tgt *Expression) (err error) {
 
 	case *ast.IndexExpr:
 		// accessing a map
-		// request.header["abc"]
+		// request.headers["abc"]
 		tgt.Fn = &Function{Name: tMap[token.LBRACK]}
 		if err = processFunc(tgt.Fn, []ast.Expr{v.X, v.Index}); err != nil {
 			return

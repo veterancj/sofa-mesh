@@ -17,49 +17,28 @@ package envoy
 import (
 	"context"
 	"crypto/sha256"
-	"fmt"
 	"hash"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path"
 	"time"
 
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/duration"
 	"github.com/howeyc/fsnotify"
 
 	meshconfig "istio.io/api/mesh/v1alpha1"
 	"istio.io/istio/pilot/pkg/model"
-	"istio.io/istio/pilot/pkg/proxy"
-	"istio.io/istio/pkg/bootstrap"
 	"istio.io/istio/pkg/log"
 )
 
 const (
-	// MaxClusterNameLength is the maximum cluster name length
-	MaxClusterNameLength = 189 // TODO: use MeshConfig.StatNameLength instead
+	// defaultMinDelay is the minimum amount of time between delivery of two successive events via updateFunc.
+	defaultMinDelay = 10 * time.Second
 )
-
-// convertDuration converts to golang duration and logs errors
-func convertDuration(d *duration.Duration) time.Duration {
-	if d == nil {
-		return 0
-	}
-	dur, err := ptypes.Duration(d)
-	if err != nil {
-		log.Warnf("error converting duration %#v, using 0: %v", d, err)
-	}
-	return dur
-}
 
 // Watcher triggers reloads on changes to the proxy config
 type Watcher interface {
 	// Run the watcher loop (blocking call)
 	Run(context.Context)
-
-	// Reload the agent with the latest configuration
-	Reload()
 }
 
 // CertSource is file source for certificates
@@ -71,37 +50,33 @@ type CertSource struct {
 }
 
 type watcher struct {
-	agent    proxy.Agent
-	role     model.Proxy
+	role     *model.Proxy
 	config   meshconfig.ProxyConfig
 	certs    []CertSource
 	pilotSAN []string
+	updates  chan<- interface{}
 }
 
 // NewWatcher creates a new watcher instance from a proxy agent and a set of monitored certificate paths
 // (directories with files in them)
-func NewWatcher(config meshconfig.ProxyConfig, agent proxy.Agent, role model.Proxy,
-	certs []CertSource, pilotSAN []string) Watcher {
+func NewWatcher(
+	config meshconfig.ProxyConfig,
+	role *model.Proxy,
+	certs []CertSource,
+	pilotSAN []string,
+	updates chan<- interface{}) Watcher {
 	return &watcher{
-		agent:    agent,
 		role:     role,
 		config:   config,
 		certs:    certs,
 		pilotSAN: pilotSAN,
+		updates:  updates,
 	}
 }
 
-const (
-	// defaultMinDelay is the minimum amount of time between delivery of two successive events via updateFunc.
-	defaultMinDelay = 10 * time.Second
-)
-
 func (w *watcher) Run(ctx context.Context) {
-	// agent consumes notifications from the controller
-	go w.agent.Run(ctx)
-
-	// kickstart the proxy with partial state (in case there are no notifications coming)
-	w.Reload()
+	// kick start the proxy with partial state (in case there are no notifications coming)
+	w.SendConfig()
 
 	// monitor certificates
 	certDirs := make([]string, 0, len(w.certs))
@@ -109,18 +84,18 @@ func (w *watcher) Run(ctx context.Context) {
 		certDirs = append(certDirs, cert.Directory)
 	}
 
-	go watchCerts(ctx, certDirs, watchFileEvents, defaultMinDelay, w.Reload)
+	go watchCerts(ctx, certDirs, watchFileEvents, defaultMinDelay, w.SendConfig)
 
 	<-ctx.Done()
 }
 
-func (w *watcher) Reload() {
+func (w *watcher) SendConfig() {
 	h := sha256.New()
 	for _, cert := range w.certs {
 		generateCertHash(h, cert.Directory, cert.Files)
 	}
 
-	w.agent.ScheduleConfigUpdate(h.Sum(nil))
+	w.updates <- h.Sum(nil)
 }
 
 type watchFileEventsFn func(ctx context.Context, wch <-chan *fsnotify.FileEvent,
@@ -129,7 +104,7 @@ type watchFileEventsFn func(ctx context.Context, wch <-chan *fsnotify.FileEvent,
 // watchFileEvents watches for changes on a channel and notifies via notifyFn().
 // The function batches changes so that related changes are processed together.
 // The function ensures that notifyFn() is called no more than one time per minDelay.
-// The function does not return until the the context is cancelled.
+// The function does not return until the the context is canceled.
 func watchFileEvents(ctx context.Context, wch <-chan *fsnotify.FileEvent, minDelay time.Duration, notifyFn func()) {
 	// timer and channel for managing minDelay.
 	var timeChan <-chan time.Time

@@ -29,6 +29,7 @@ import (
 	mixerpb "istio.io/api/mixer/v1"
 	"istio.io/istio/mixer/pkg/attribute"
 	"istio.io/istio/mixer/pkg/checkcache"
+	"istio.io/istio/mixer/pkg/loadshedding"
 	"istio.io/istio/mixer/pkg/pool"
 	"istio.io/istio/mixer/pkg/runtime/dispatcher"
 	"istio.io/istio/mixer/pkg/status"
@@ -45,13 +46,16 @@ type (
 		// the global dictionary. This will eventually be writable via config
 		globalWordList []string
 		globalDict     map[string]int32
+
+		// load shedding
+		throttler *loadshedding.Throttler
 	}
 )
 
 var lg = log.RegisterScope("api", "API dispatcher messages.", 0)
 
 // NewGRPCServer creates a gRPC serving stack.
-func NewGRPCServer(dispatcher dispatcher.Dispatcher, gp *pool.GoroutinePool, cache *checkcache.Cache) mixerpb.MixerServer {
+func NewGRPCServer(dispatcher dispatcher.Dispatcher, gp *pool.GoroutinePool, cache *checkcache.Cache, throttler *loadshedding.Throttler) mixerpb.MixerServer {
 	list := attribute.GlobalList()
 	globalDict := make(map[string]int32, len(list))
 	for i := 0; i < len(list); i++ {
@@ -64,13 +68,24 @@ func NewGRPCServer(dispatcher dispatcher.Dispatcher, gp *pool.GoroutinePool, cac
 		globalWordList: list,
 		globalDict:     globalDict,
 		cache:          cache,
+		throttler:      throttler,
 	}
 }
 
 // Check is the entry point for the external Check method
 func (s *grpcServer) Check(ctx context.Context, req *mixerpb.CheckRequest) (*mixerpb.CheckResponse, error) {
+	if s.throttler.Throttle(loadshedding.RequestInfo{PredictedCost: 1.0}) {
+		return nil, grpc.Errorf(codes.Unavailable, "Server is currently overloaded. Please try again.")
+	}
+
 	lg.Debugf("Check (GlobalWordCount:%d, DeduplicationID:%s, Quota:%v)", req.GlobalWordCount, req.DeduplicationId, req.Quotas)
 	lg.Debug("Dispatching Preprocess Check")
+
+	if req.GlobalWordCount > uint32(len(s.globalWordList)) {
+		err := fmt.Errorf("inconsistent global dictionary versions used: mixer knows %d words, caller knows %d", len(s.globalWordList), req.GlobalWordCount)
+		lg.Errora("Check failed:", err.Error())
+		return nil, grpc.Errorf(codes.Internal, err.Error())
+	}
 
 	// bag around the input proto that keeps track of reference attributes
 	protoBag := attribute.NewProtoBag(&req.Attributes, s.globalDict, s.globalWordList)
@@ -86,13 +101,14 @@ func (s *grpcServer) Check(ctx context.Context, req *mixerpb.CheckRequest) (*mix
 					ValidDuration:        value.Expiration.Sub(time.Now()),
 					ValidUseCount:        value.ValidUseCount,
 					ReferencedAttributes: &value.ReferencedAttributes,
+					RouteDirective:       value.RouteDirective,
 				},
 			}
 
 			if status.IsOK(resp.Precondition.Status) {
-				log.Debug("Check approved from cache")
+				lg.Debug("Check approved from cache")
 			} else {
-				log.Debugf("Check denied from cache: %v", resp.Precondition.Status)
+				lg.Debugf("Check denied from cache: %v", resp.Precondition.Status)
 			}
 
 			if !status.IsOK(resp.Precondition.Status) || len(req.Quotas) == 0 {
@@ -151,6 +167,7 @@ func (s *grpcServer) check(ctx context.Context, req *mixerpb.CheckRequest,
 			ValidUseCount:        cr.ValidUseCount,
 			Status:               cr.Status,
 			ReferencedAttributes: protoBag.GetReferencedAttributes(s.globalDict, globalWordCount),
+			RouteDirective:       cr.RouteDirective,
 		},
 	}
 
@@ -162,6 +179,7 @@ func (s *grpcServer) check(ctx context.Context, req *mixerpb.CheckRequest,
 			Expiration:           time.Now().Add(resp.Precondition.ValidDuration),
 			ValidUseCount:        resp.Precondition.ValidUseCount,
 			ReferencedAttributes: *resp.Precondition.ReferencedAttributes,
+			RouteDirective:       resp.Precondition.RouteDirective,
 		})
 	}
 
@@ -210,7 +228,18 @@ var reportResp = &mixerpb.ReportResponse{}
 
 // Report is the entry point for the external Report method
 func (s *grpcServer) Report(ctx context.Context, req *mixerpb.ReportRequest) (*mixerpb.ReportResponse, error) {
+
+	if s.throttler.Throttle(loadshedding.RequestInfo{PredictedCost: float64(len(req.Attributes))}) {
+		return nil, grpc.Errorf(codes.Unavailable, "Server is currently overloaded. Please try again.")
+	}
+
 	lg.Debugf("Report (Count: %d)", len(req.Attributes))
+
+	if req.GlobalWordCount > uint32(len(s.globalWordList)) {
+		err := fmt.Errorf("inconsistent global dictionary versions used: mixer knows %d words, caller knows %d", len(s.globalWordList), req.GlobalWordCount)
+		lg.Errora("Report failed:", err.Error())
+		return nil, grpc.Errorf(codes.Internal, err.Error())
+	}
 
 	if len(req.Attributes) == 0 {
 		// early out

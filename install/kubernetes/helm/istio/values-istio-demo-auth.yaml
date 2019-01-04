@@ -9,16 +9,8 @@ global:
     # destination rules or service annotations.
     enabled: true
 
-ingress:
-  # Ingress is used for migration, for alpha3 we expect ingressgateway
-  enabled: false
-
-prometheus:
-  enabled: true
-
-sidecarInjectorWebhook:
-  enabled: true
-  enableNamespacesByDefault: false
+pilot:
+  traceSampling: 100.0
 
 grafana:
   enabled: true
@@ -29,5 +21,5 @@ tracing:
 servicegraph:
   enabled: true
 
-galley:
+kiali:
   enabled: true

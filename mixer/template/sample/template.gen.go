@@ -79,6 +79,12 @@ func (w *wrapperAttr) Get(name string) (value interface{}, found bool) {
 	return w.get(name)
 }
 
+// Contains returns true if key is present.
+func (w *wrapperAttr) Contains(key string) (found bool) {
+	_, found = w.get(key)
+	return found
+}
+
 // Names returns the names of all the attributes known to this bag.
 func (w *wrapperAttr) Names() []string {
 	return w.names()
@@ -472,11 +478,11 @@ var (
 
 							case "out_ip":
 
-								return []uint8(out.OutIp), true
+								return []byte(out.OutIp), true
 
 							case "out_str_map":
 
-								return out.OutStrMap, true
+								return attribute.WrapStringMap(out.OutStrMap), true
 
 							default:
 								return nil, false
@@ -812,7 +818,7 @@ var (
 			},
 
 			// DispatchCheck dispatches the instance to the handler.
-			DispatchCheck: func(ctx context.Context, handler adapter.Handler, inst interface{}) (adapter.CheckResult, error) {
+			DispatchCheck: func(ctx context.Context, handler adapter.Handler, inst interface{}, out *attribute.MutableBag, outPrefix string) (adapter.CheckResult, error) {
 
 				// Convert the instance from the generic interface{}, to its specialized type.
 				instance := inst.(*istio_mixer_adapter_sample_check.Instance)
@@ -1861,7 +1867,7 @@ func (b *builder_istio_mixer_adapter_sample_myapa_Template) build(
 			return nil, template.NewErrorPath("OptionalIP", err)
 		}
 
-		r.OptionalIP = vIface.(net.IP)
+		r.OptionalIP = net.IP(vIface.([]byte))
 
 	}
 
@@ -4468,7 +4474,7 @@ func (b *builder_istio_mixer_adapter_sample_report_Res2) build(
 			return nil, template.NewErrorPath("IpAddr", err)
 		}
 
-		r.IpAddr = vIface.(net.IP)
+		r.IpAddr = net.IP(vIface.([]byte))
 
 	}
 

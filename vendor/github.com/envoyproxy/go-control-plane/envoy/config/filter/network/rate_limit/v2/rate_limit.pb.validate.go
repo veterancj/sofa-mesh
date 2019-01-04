@@ -87,6 +87,8 @@ func (m *RateLimit) Validate() error {
 		}
 	}
 
+	// no validation rules for FailureModeDeny
+
 	return nil
 }
 

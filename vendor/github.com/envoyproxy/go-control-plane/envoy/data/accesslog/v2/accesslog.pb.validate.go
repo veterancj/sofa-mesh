@@ -403,6 +403,8 @@ func (m *ResponseFlags) Validate() error {
 		}
 	}
 
+	// no validation rules for RateLimitServiceError
+
 	return nil
 }
 

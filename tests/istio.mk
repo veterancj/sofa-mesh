@@ -43,11 +43,15 @@ e2e_docker: push
 
 endif
 
+E2E_TIMEOUT ?= 25
+
 # If set outside, it appears it is not possible to modify the variable.
 E2E_ARGS ?=
 
+ISTIOCTL_BIN ?= ${ISTIO_OUT}/istioctl
+
 DEFAULT_EXTRA_E2E_ARGS = ${MINIKUBE_FLAGS}
-DEFAULT_EXTRA_E2E_ARGS += --istioctl=${ISTIO_OUT}/istioctl
+DEFAULT_EXTRA_E2E_ARGS += --istioctl=${ISTIOCTL_BIN}
 DEFAULT_EXTRA_E2E_ARGS += --mixer_tag=${TAG}
 DEFAULT_EXTRA_E2E_ARGS += --pilot_tag=${TAG}
 DEFAULT_EXTRA_E2E_ARGS += --proxy_tag=${TAG}
@@ -61,29 +65,19 @@ DEFAULT_EXTRA_E2E_ARGS += --galley_hub=${HUB}
 
 EXTRA_E2E_ARGS ?= ${DEFAULT_EXTRA_E2E_ARGS}
 
-# These arguments are only needed by upgrade test.
-DEFAULT_UPGRADE_E2E_ARGS =
-LAST_RELEASE := $(shell curl -L -s https://api.github.com/repos/istio/istio/releases/latest \
-	| grep tag_name | sed "s/ *\"tag_name\": *\"\(.*\)\",*/\1/")
-DEFAULT_UPGRADE_E2E_ARGS += --base_version=${LAST_RELEASE}
-DEFAULT_UPGRADE_E2E_ARGS += --target_version=""
-UPGRADE_E2E_ARGS ?= ${DEFAULT_UPGRADE_E2E_ARGS}
-
 e2e_simple: istioctl generate_yaml e2e_simple_run
 e2e_simple_auth: istioctl generate_yaml e2e_simple_auth_run
 e2e_simple_noauth: istioctl generate_yaml e2e_simple_noauth_run
 
-e2e_mixer: istioctl generate_yaml e2e_mixer_run
+e2e_mixer: istioctl generate_e2e_test_yaml e2e_mixer_run
 
 e2e_galley: istioctl generate_yaml e2e_galley_run
 
-e2e_dashboard: istioctl generate_yaml e2e_dashboard_run
+e2e_dashboard: istioctl generate_e2e_test_yaml e2e_dashboard_run
 
 e2e_bookinfo: istioctl generate_yaml e2e_bookinfo_run
 
-e2e_upgrade: istioctl generate_yaml e2e_upgrade_run
-
-e2e_version_skew: istioctl generate_yaml e2e_version_skew_run
+e2e_stackdriver: istioctl generate_yaml e2e_stackdriver_run
 
 e2e_all: istioctl generate_yaml e2e_all_run
 
@@ -101,7 +95,7 @@ e2e_simple_noauth_run: out_dir
 	--rbac_enable=false --cluster_wide ${E2E_ARGS} ${T} ${EXTRA_E2E_ARGS} ${CAPTURE_LOG}
 
 e2e_mixer_run: out_dir
-	set -o pipefail; go test -v -timeout 25m ./tests/e2e/tests/mixer \
+	set -o pipefail; go test -v -timeout 35m ./tests/e2e/tests/mixer \
 	--auth_enable=false --egress=false --ingress=false --rbac_enable=false \
 	--cluster_wide ${E2E_ARGS} ${T} ${EXTRA_E2E_ARGS} ${CAPTURE_LOG}
 
@@ -109,19 +103,16 @@ e2e_galley_run: out_dir
 	go test -v -timeout 25m ./tests/e2e/tests/galley -args ${E2E_ARGS} ${EXTRA_E2E_ARGS} -use_galley_config_validator -cluster_wide
 
 e2e_dashboard_run: out_dir
-	go test -v -timeout 25m ./tests/e2e/tests/dashboard -args ${E2E_ARGS} ${EXTRA_E2E_ARGS}
+	go test -v -timeout 25m ./tests/e2e/tests/dashboard -args ${E2E_ARGS} ${EXTRA_E2E_ARGS} -use_galley_config_validator -cluster_wide
 
 e2e_bookinfo_run: out_dir
 	go test -v -timeout 60m ./tests/e2e/tests/bookinfo -args ${E2E_ARGS} ${EXTRA_E2E_ARGS}
 
-e2e_upgrade_run: out_dir
-	go test -v -timeout 25m ./tests/e2e/tests/upgrade -args ${E2E_ARGS} ${EXTRA_E2E_ARGS} ${UPGRADE_E2E_ARGS}
-
-e2e_version_skew_run: out_dir
-	go test -v -timeout 25m ./tests/e2e/tests/upgrade -args --smooth_check=true ${E2E_ARGS} ${EXTRA_E2E_ARGS} ${UPGRADE_E2E_ARGS}
+e2e_stackdriver_run: out_dir
+	go test -v -timeout 25m ./tests/e2e/tests/stackdriver -args ${E2E_ARGS} ${EXTRA_E2E_ARGS} --gcp_proj=${GCP_PROJ} --sa_cred=/etc/service-account/service-account.json
 
 e2e_all_run: out_dir
-	$(MAKE) --keep-going e2e_simple_run e2e_bookinfo_run e2e_dashboard_run e2e_upgrade_run e2e_version_skew_run
+	$(MAKE) --keep-going e2e_simple_run e2e_bookinfo_run e2e_dashboard_run
 
 JUNIT_E2E_XML ?= $(ISTIO_OUT)/junit.xml
 TARGET ?= e2e_all
@@ -165,8 +156,8 @@ test/local/noauth/e2e_simple: out_dir generate_yaml
 	--egress=false --ingress=false \
 	--rbac_enable=false --use_local_cluster --cluster_wide ${E2E_ARGS} ${T} ${EXTRA_E2E_ARGS} ${CAPTURE_LOG}
 
-test/local/e2e_mixer: out_dir generate_yaml
-	set -o pipefail; go test -v -timeout 25m ./tests/e2e/tests/mixer \
+test/local/e2e_mixer: out_dir generate_e2e_test_yaml
+	set -o pipefail; go test -v -timeout 35m ./tests/e2e/tests/mixer \
 	--auth_enable=false --egress=false --ingress=false --rbac_enable=false \
 	--cluster_wide ${E2E_ARGS} ${T} ${EXTRA_E2E_ARGS} ${CAPTURE_LOG}
 
@@ -176,20 +167,20 @@ test/local/e2e_galley: out_dir istioctl generate_yaml
 	${CAPTURE_LOG}
 
 # v1alpha3+envoyv2 test without MTLS
-test/local/noauth/e2e_pilotv2: out_dir generate_yaml
-	set -o pipefail; go test -v -timeout 25m ./tests/e2e/tests/pilot \
+test/local/noauth/e2e_pilotv2: out_dir generate_yaml_coredump
+	set -o pipefail; go test -v -timeout ${E2E_TIMEOUT}m ./tests/e2e/tests/pilot \
 		--auth_enable=false --ingress=false --rbac_enable=true --cluster_wide \
 		${E2E_ARGS} ${T} ${EXTRA_E2E_ARGS} ${CAPTURE_LOG}
 	# Run the pilot controller tests
-	set -o pipefail; go test -v -timeout 25m ./tests/e2e/tests/controller ${CAPTURE_LOG}
+	set -o pipefail; go test -v -timeout ${E2E_TIMEOUT}m ./tests/e2e/tests/controller ${CAPTURE_LOG}
 
 # v1alpha3+envoyv2 test with MTLS
-test/local/auth/e2e_pilotv2: out_dir generate_yaml
-	set -o pipefail; go test -v -timeout 25m ./tests/e2e/tests/pilot \
+test/local/auth/e2e_pilotv2: out_dir generate_yaml_coredump
+	set -o pipefail; go test -v -timeout ${E2E_TIMEOUT}m ./tests/e2e/tests/pilot \
 		--auth_enable=true --ingress=false --rbac_enable=true --cluster_wide \
 		${E2E_ARGS} ${T} ${EXTRA_E2E_ARGS} ${CAPTURE_LOG}
 	# Run the pilot controller tests
-	set -o pipefail; go test -v -timeout 25m ./tests/e2e/tests/controller ${CAPTURE_LOG}
+	set -o pipefail; go test -v -timeout ${E2E_TIMEOUT}m ./tests/e2e/tests/controller ${CAPTURE_LOG}
 
 test/local/cloudfoundry/e2e_pilotv2: out_dir
 	sudo apt update
@@ -204,8 +195,8 @@ test/local/auth/e2e_bookinfo_envoyv2: out_dir generate_yaml
 		--auth_enable=true --egress=true --ingress=false --rbac_enable=false \
 		--cluster_wide ${E2E_ARGS} ${T} ${EXTRA_E2E_ARGS} ${CAPTURE_LOG}
 
-test/local/noauth/e2e_mixer_envoyv2: out_dir generate_yaml
-	set -o pipefail; go test -v -timeout 25m ./tests/e2e/tests/mixer \
+test/local/noauth/e2e_mixer_envoyv2: out_dir generate_e2e_test_yaml
+	set -o pipefail; go test -v -timeout 35m ./tests/e2e/tests/mixer \
 	--auth_enable=false --egress=false --ingress=false --rbac_enable=false \
 	--cluster_wide ${E2E_ARGS} ${T} ${EXTRA_E2E_ARGS} ${CAPTURE_LOG}
 

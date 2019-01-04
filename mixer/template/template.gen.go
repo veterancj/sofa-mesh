@@ -95,6 +95,12 @@ func (w *wrapperAttr) Get(name string) (value interface{}, found bool) {
 	return w.get(name)
 }
 
+// Contains returns true if key is present.
+func (w *wrapperAttr) Contains(key string) (found bool) {
+	_, found = w.get(key)
+	return found
+}
+
 // Names returns the names of all the attributes known to this bag.
 func (w *wrapperAttr) Names() []string {
 	return w.names()
@@ -347,7 +353,7 @@ var (
 
 							case "source_pod_ip":
 
-								return []uint8(out.SourcePodIp), true
+								return []byte(out.SourcePodIp), true
 
 							case "source_pod_name":
 
@@ -355,7 +361,7 @@ var (
 
 							case "source_labels":
 
-								return out.SourceLabels, true
+								return attribute.WrapStringMap(out.SourceLabels), true
 
 							case "source_namespace":
 
@@ -367,7 +373,7 @@ var (
 
 							case "source_host_ip":
 
-								return []uint8(out.SourceHostIp), true
+								return []byte(out.SourceHostIp), true
 
 							case "source_workload_uid":
 
@@ -391,7 +397,7 @@ var (
 
 							case "destination_pod_ip":
 
-								return []uint8(out.DestinationPodIp), true
+								return []byte(out.DestinationPodIp), true
 
 							case "destination_pod_name":
 
@@ -403,7 +409,7 @@ var (
 
 							case "destination_labels":
 
-								return out.DestinationLabels, true
+								return attribute.WrapStringMap(out.DestinationLabels), true
 
 							case "destination_namespace":
 
@@ -415,7 +421,7 @@ var (
 
 							case "destination_host_ip":
 
-								return []uint8(out.DestinationHostIp), true
+								return []byte(out.DestinationHostIp), true
 
 							case "destination_owner":
 
@@ -847,7 +853,7 @@ var (
 			},
 
 			// DispatchCheck dispatches the instance to the handler.
-			DispatchCheck: func(ctx context.Context, handler adapter.Handler, inst interface{}) (adapter.CheckResult, error) {
+			DispatchCheck: func(ctx context.Context, handler adapter.Handler, inst interface{}, out *attribute.MutableBag, outPrefix string) (adapter.CheckResult, error) {
 
 				// Convert the instance from the generic interface{}, to its specialized type.
 				instance := inst.(*apikey.Instance)
@@ -1075,7 +1081,7 @@ var (
 			},
 
 			// DispatchCheck dispatches the instance to the handler.
-			DispatchCheck: func(ctx context.Context, handler adapter.Handler, inst interface{}) (adapter.CheckResult, error) {
+			DispatchCheck: func(ctx context.Context, handler adapter.Handler, inst interface{}, out *attribute.MutableBag, outPrefix string) (adapter.CheckResult, error) {
 
 				// Convert the instance from the generic interface{}, to its specialized type.
 				instance := inst.(*authorization.Instance)
@@ -1175,7 +1181,7 @@ var (
 			},
 
 			// DispatchCheck dispatches the instance to the handler.
-			DispatchCheck: func(ctx context.Context, handler adapter.Handler, inst interface{}) (adapter.CheckResult, error) {
+			DispatchCheck: func(ctx context.Context, handler adapter.Handler, inst interface{}, out *attribute.MutableBag, outPrefix string) (adapter.CheckResult, error) {
 
 				// Convert the instance from the generic interface{}, to its specialized type.
 				instance := inst.(*checknothing.Instance)
@@ -1489,7 +1495,7 @@ var (
 			},
 
 			// DispatchCheck dispatches the instance to the handler.
-			DispatchCheck: func(ctx context.Context, handler adapter.Handler, inst interface{}) (adapter.CheckResult, error) {
+			DispatchCheck: func(ctx context.Context, handler adapter.Handler, inst interface{}, out *attribute.MutableBag, outPrefix string) (adapter.CheckResult, error) {
 
 				// Convert the instance from the generic interface{}, to its specialized type.
 				instance := inst.(*listentry.Instance)
@@ -2399,7 +2405,7 @@ func (b *builder_adapter_template_kubernetes_Template) build(
 			return nil, template.NewErrorPath("SourceIp", err)
 		}
 
-		r.SourceIp = vIface.(net.IP)
+		r.SourceIp = net.IP(vIface.([]byte))
 
 	}
 
@@ -2419,7 +2425,7 @@ func (b *builder_adapter_template_kubernetes_Template) build(
 			return nil, template.NewErrorPath("DestinationIp", err)
 		}
 
-		r.DestinationIp = vIface.(net.IP)
+		r.DestinationIp = net.IP(vIface.([]byte))
 
 	}
 

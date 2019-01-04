@@ -28,7 +28,7 @@ import (
 
 const usage = `
 
-gen-meta [runtime|kube] <input-yaml-path> <output-go-path> 
+gen-meta [runtime|kube] <input-yaml-path> <output-go-path>
 
 `
 
@@ -52,15 +52,14 @@ type entry struct {
 	Group          string `json:"group"`
 	Version        string `json:"version"`
 	Proto          string `json:"proto"`
-	Gogo           bool   `json:"gogo"`
 	Converter      string `json:"converter"`
 	ProtoGoPackage string `json:"protoPackage"`
 }
 
 // proto related metadata
 type protoDef struct {
+	FullName    string `json:"-"`
 	MessageName string `json:"-"`
-	Gogo        bool   `json:"-"`
 }
 
 func main() {
@@ -167,7 +166,9 @@ func readMetadata(path string) (*metadata, error) {
 		if _, found := knownProtoTypes[e.Proto]; e.Proto == "" || found {
 			continue
 		}
-		defn := protoDef{MessageName: e.Proto, Gogo: e.Gogo}
+		parts := strings.Split(e.Proto, ".")
+		msgName := parts[len(parts)-1]
+		defn := protoDef{MessageName: msgName, FullName: e.Proto}
 
 		if prevDefn, ok := protoDefs[e.Proto]; ok && defn != prevDefn {
 			return nil, fmt.Errorf("proto definitions do not match: %+v != %+v", defn, prevDefn)
@@ -196,18 +197,29 @@ const runtimeTemplate = `
 package metadata
 
 import (
-// Pull in all the known proto types to ensure we get their types registered.
-{{range .ProtoGoPackages}}	_ "{{.}}"
-	"istio.io/istio/galley/pkg/runtime/resource"
+	// Pull in all the known proto types to ensure we get their types registered.
+
+{{range .ProtoGoPackages}}	
+	// Register protos in {{.}}""
+	_ "{{.}}"
 {{end}}
+
+	"istio.io/istio/galley/pkg/runtime/resource"
 )
 
 // Types of known resources.
 var Types *resource.Schema
 
+var (
+	{{range .ProtoDefs}}
+		// {{.MessageName}} metadata
+		{{.MessageName}} resource.Info
+	{{end}}
+)
+
 func init() {
 	b := resource.NewSchemaBuilder()
-{{range .ProtoDefs}}	b.Register("type.googleapis.com/{{.MessageName}}", {{.Gogo}})
+{{range .ProtoDefs}}	{{.MessageName}} = b.Register("type.googleapis.com/{{.FullName}}")
 {{end}}
     Types = b.Build()
 }
@@ -224,6 +236,7 @@ package kube
 import (
 	"istio.io/istio/galley/pkg/kube"
 	"istio.io/istio/galley/pkg/kube/converter"
+	"istio.io/istio/galley/pkg/metadata"
 )
 
 // Types in the schema.

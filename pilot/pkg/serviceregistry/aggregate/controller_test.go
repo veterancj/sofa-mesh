@@ -225,26 +225,6 @@ func TestGetService(t *testing.T) {
 	}
 }
 
-func TestGetServiceAttributes(t *testing.T) {
-	aggregateCtl := buildMockController()
-	svc, err := aggregateCtl.GetService(memory.HelloService.Hostname)
-	if err != nil {
-		t.Fatalf("GetService() encountered unexpected error: %v", err)
-	}
-	if svc == nil {
-		t.Fatal("Fail to get service")
-	}
-
-	expect := model.ServiceAttributes{
-		Name:      svc.Hostname.String(),
-		Namespace: model.IstioDefaultConfigNamespace,
-	}
-	// The mock controller uses the memory service discovery that returns a default ServiceAttributes.
-	if attr, _ := aggregateCtl.GetServiceAttributes(svc.Hostname); !reflect.DeepEqual(*attr, expect) {
-		t.Fatalf("GetServiceAttributes() got: %v but want %v", *attr, expect)
-	}
-}
-
 func TestGetServiceError(t *testing.T) {
 	aggregateCtl := buildMockController()
 
@@ -278,7 +258,7 @@ func TestGetProxyServiceInstances(t *testing.T) {
 	aggregateCtl := buildMockController()
 
 	// Get Instances from mockAdapter1
-	instances, err := aggregateCtl.GetProxyServiceInstances(&model.Proxy{IPAddress: memory.HelloInstanceV0})
+	instances, err := aggregateCtl.GetProxyServiceInstances(&model.Proxy{IPAddresses: []string{memory.HelloInstanceV0}})
 	if err != nil {
 		t.Fatalf("GetProxyServiceInstances() encountered unexpected error: %v", err)
 	}
@@ -292,7 +272,7 @@ func TestGetProxyServiceInstances(t *testing.T) {
 	}
 
 	// Get Instances from mockAdapter2
-	instances, err = aggregateCtl.GetProxyServiceInstances(&model.Proxy{IPAddress: memory.MakeIP(memory.WorldService, 1)})
+	instances, err = aggregateCtl.GetProxyServiceInstances(&model.Proxy{IPAddresses: []string{memory.MakeIP(memory.WorldService, 1)}})
 	if err != nil {
 		t.Fatalf("GetProxyServiceInstances() encountered unexpected error: %v", err)
 	}
@@ -312,7 +292,7 @@ func TestGetProxyServiceInstancesError(t *testing.T) {
 	discovery1.GetProxyServiceInstancesError = errors.New("mock GetProxyServiceInstances() error")
 
 	// Get Instances from client with error
-	instances, err := aggregateCtl.GetProxyServiceInstances(&model.Proxy{IPAddress: memory.HelloInstanceV0})
+	instances, err := aggregateCtl.GetProxyServiceInstances(&model.Proxy{IPAddresses: []string{memory.HelloInstanceV0}})
 	if err == nil {
 		t.Fatal("Aggregate controller should return error if one discovery client experiences " +
 			"error and no instances are found")
@@ -322,7 +302,7 @@ func TestGetProxyServiceInstancesError(t *testing.T) {
 	}
 
 	// Get Instances from client without error
-	instances, err = aggregateCtl.GetProxyServiceInstances(&model.Proxy{IPAddress: memory.MakeIP(memory.WorldService, 1)})
+	instances, err = aggregateCtl.GetProxyServiceInstances(&model.Proxy{IPAddresses: []string{memory.MakeIP(memory.WorldService, 1)}})
 	if err != nil {
 		t.Fatal("Aggregate controller should not return error if instances are found")
 	}
@@ -340,8 +320,8 @@ func TestInstances(t *testing.T) {
 	aggregateCtl := buildMockController()
 
 	// Get Instances from mockAdapter1
-	instances, err := aggregateCtl.Instances(memory.HelloService.Hostname,
-		[]string{memory.PortHTTPName},
+	instances, err := aggregateCtl.InstancesByPort(memory.HelloService.Hostname,
+		80,
 		model.LabelsCollection{})
 	if err != nil {
 		t.Fatalf("Instances() encountered unexpected error: %v", err)
@@ -359,8 +339,8 @@ func TestInstances(t *testing.T) {
 	}
 
 	// Get Instances from mockAdapter2
-	instances, err = aggregateCtl.Instances(memory.WorldService.Hostname,
-		[]string{memory.PortHTTPName},
+	instances, err = aggregateCtl.InstancesByPort(memory.WorldService.Hostname,
+		80,
 		model.LabelsCollection{})
 	if err != nil {
 		t.Fatalf("Instances() encountered unexpected error: %v", err)
@@ -384,8 +364,8 @@ func TestInstancesError(t *testing.T) {
 	discovery1.InstancesError = errors.New("mock Instances() error")
 
 	// Get Instances from client with error
-	instances, err := aggregateCtl.Instances(memory.HelloService.Hostname,
-		[]string{memory.PortHTTPName},
+	instances, err := aggregateCtl.InstancesByPort(memory.HelloService.Hostname,
+		80,
 		model.LabelsCollection{})
 	if err == nil {
 		t.Fatal("Aggregate controller should return error if one discovery client experiences " +
@@ -396,8 +376,8 @@ func TestInstancesError(t *testing.T) {
 	}
 
 	// Get Instances from client without error
-	instances, err = aggregateCtl.Instances(memory.WorldService.Hostname,
-		[]string{memory.PortHTTPName},
+	instances, err = aggregateCtl.InstancesByPort(memory.WorldService.Hostname,
+		80,
 		model.LabelsCollection{})
 	if err != nil {
 		t.Fatalf("Instances() should not return error is instances are found: %v", err)
@@ -419,7 +399,7 @@ func TestGetIstioServiceAccounts(t *testing.T) {
 	aggregateCtl := buildMockController()
 
 	// Get accounts from mockAdapter1
-	accounts := aggregateCtl.GetIstioServiceAccounts(memory.HelloService.Hostname, []string{})
+	accounts := aggregateCtl.GetIstioServiceAccounts(memory.HelloService.Hostname, []int{})
 	expected := []string{}
 
 	if len(accounts) != len(expected) {
@@ -433,7 +413,7 @@ func TestGetIstioServiceAccounts(t *testing.T) {
 	}
 
 	// Get accounts from mockAdapter2
-	accounts = aggregateCtl.GetIstioServiceAccounts(memory.WorldService.Hostname, []string{})
+	accounts = aggregateCtl.GetIstioServiceAccounts(memory.WorldService.Hostname, []int{})
 	expected = []string{
 		"spiffe://cluster.local/ns/default/sa/serviceaccount1",
 		"spiffe://cluster.local/ns/default/sa/serviceaccount2",

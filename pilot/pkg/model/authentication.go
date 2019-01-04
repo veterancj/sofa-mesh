@@ -19,21 +19,47 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
+	"github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
+	"github.com/envoyproxy/go-control-plane/envoy/config/grpc_credential/v2alpha"
+	"github.com/envoyproxy/go-control-plane/pkg/util"
+	"github.com/gogo/protobuf/proto"
+	"github.com/gogo/protobuf/types"
+
 	authn "istio.io/api/authentication/v1alpha1"
-	meshconfig "istio.io/api/mesh/v1alpha1"
+)
+
+const (
+	// SDSStatPrefix is the human readable prefix to use when emitting statistics for the SDS service.
+	SDSStatPrefix = "sdsstat"
+
+	// SDSDefaultResourceName is the default name in sdsconfig, used for fetching normal key/cert.
+	SDSDefaultResourceName = "default"
+
+	// SDSRootResourceName is the sdsconfig name for root CA, used for fetching root cert.
+	SDSRootResourceName = "ROOTCA"
+
+	// K8sSATrustworthyJwtFileName is the token volume mount file name for k8s trustworthy jwt token.
+	K8sSATrustworthyJwtFileName = "/var/run/secrets/tokens/istio-token"
+
+	// K8sSAJwtFileName is the token volume mount file name for k8s jwt token.
+	K8sSAJwtFileName = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+
+	// fileBasedMetadataPlugName is File Based Metadata credentials plugin name.
+	fileBasedMetadataPlugName = "envoy.grpc_credentials.file_based_metadata"
+
+	// k8sSAJwtTokenHeaderKey is the request header key for k8s jwt token.
+	// Binary header name must has suffix "-bin", according to https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md.
+	k8sSAJwtTokenHeaderKey = "istio_sds_credentail_header-bin"
 )
 
 // JwtKeyResolver resolves JWT public key and JwksURI.
 var JwtKeyResolver = newJwksResolver(JwtPubKeyExpireDuration, JwtPubKeyEvictionDuration, JwtPubKeyRefreshInterval)
 
 // GetConsolidateAuthenticationPolicy returns the authentication policy for
-// service specified by hostname and port, if defined.
-// If not, it generates and output a policy that is equivalent to the legacy flag
-// and/or service annotation. Once these legacy flags/config deprecated,
-// this function can be placed by a call to store.AuthenticationPolicyByDestination
-// directly.
-func GetConsolidateAuthenticationPolicy(mesh *meshconfig.MeshConfig, store IstioConfigStore, hostname Hostname, port *Port) *authn.Policy {
-	config := store.AuthenticationPolicyByDestination(hostname, port)
+// service specified by hostname and port, if defined. It also tries to resolve JWKS URI if necessary.
+func GetConsolidateAuthenticationPolicy(store IstioConfigStore, service *Service, port *Port) *authn.Policy {
+	config := store.AuthenticationPolicyByDestination(service, port)
 	if config != nil {
 		policy := config.Spec.(*authn.Policy)
 		if err := JwtKeyResolver.SetAuthenticationPolicyJwksURIs(policy); err == nil {
@@ -41,23 +67,80 @@ func GetConsolidateAuthenticationPolicy(mesh *meshconfig.MeshConfig, store Istio
 		}
 	}
 
-	log.Debugf("No authentication policy found for  %s:%d. Fallback to legacy authentication mode %v\n",
-		hostname, port.Port, mesh.AuthPolicy)
-	return legacyAuthenticationPolicyToPolicy(mesh.AuthPolicy)
+	return nil
 }
 
-// If input legacy is MeshConfig_MUTUAL_TLS, return a authentication policy equivalent to it. Else,
-// returns nil (implies no authentication is used)
-func legacyAuthenticationPolicyToPolicy(legacy meshconfig.MeshConfig_AuthPolicy) *authn.Policy {
-	if legacy == meshconfig.MeshConfig_MUTUAL_TLS {
-		return &authn.Policy{
-			Peers: []*authn.PeerAuthenticationMethod{{
-				Params: &authn.PeerAuthenticationMethod_Mtls{
-					&authn.MutualTls{},
-				}}},
+// ConstructSdsSecretConfig constructs SDS Sececret Configuration.
+func ConstructSdsSecretConfig(name, sdsUdsPath string, useK8sSATrustworthyJwt, useK8sSANormalJwt bool) *auth.SdsSecretConfig {
+	if name == "" || sdsUdsPath == "" {
+		return nil
+	}
+
+	gRPCConfig := &core.GrpcService_GoogleGrpc{
+		TargetUri:  sdsUdsPath,
+		StatPrefix: SDSStatPrefix,
+		ChannelCredentials: &core.GrpcService_GoogleGrpc_ChannelCredentials{
+			CredentialSpecifier: &core.GrpcService_GoogleGrpc_ChannelCredentials_LocalCredentials{
+				LocalCredentials: &core.GrpcService_GoogleGrpc_GoogleLocalCredentials{},
+			},
+		},
+	}
+
+	// If useK8sSATrustworthyJwt is set, envoy will fetch and pass k8s sa trustworthy jwt(which is available for k8s 1.10 or higher),
+	// pass it to SDS server to request key/cert; if trustworthy jwt isn't available, envoy will fetch and pass normal k8s sa jwt to
+	// request key/cert.
+	if useK8sSATrustworthyJwt {
+		gRPCConfig.CredentialsFactoryName = fileBasedMetadataPlugName
+		gRPCConfig.CallCredentials = constructgRPCCallCredentials(K8sSATrustworthyJwtFileName, k8sSAJwtTokenHeaderKey)
+	} else if useK8sSANormalJwt {
+		gRPCConfig.CredentialsFactoryName = fileBasedMetadataPlugName
+		gRPCConfig.CallCredentials = constructgRPCCallCredentials(K8sSAJwtFileName, k8sSAJwtTokenHeaderKey)
+	} else {
+		gRPCConfig.CallCredentials = []*core.GrpcService_GoogleGrpc_CallCredentials{
+			&core.GrpcService_GoogleGrpc_CallCredentials{
+				CredentialSpecifier: &core.GrpcService_GoogleGrpc_CallCredentials_GoogleComputeEngine{
+					GoogleComputeEngine: &types.Empty{},
+				},
+			},
 		}
 	}
-	return nil
+
+	return &auth.SdsSecretConfig{
+		Name: name,
+		SdsConfig: &core.ConfigSource{
+			ConfigSourceSpecifier: &core.ConfigSource_ApiConfigSource{
+				ApiConfigSource: &core.ApiConfigSource{
+					ApiType: core.ApiConfigSource_GRPC,
+					GrpcServices: []*core.GrpcService{
+						{
+							TargetSpecifier: &core.GrpcService_GoogleGrpc_{
+								GoogleGrpc: gRPCConfig,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+// ConstructValidationContext constructs ValidationContext in CommonTlsContext.
+func ConstructValidationContext(rootCAFilePath string, subjectAltNames []string) *auth.CommonTlsContext_ValidationContext {
+	ret := &auth.CommonTlsContext_ValidationContext{
+		ValidationContext: &auth.CertificateValidationContext{
+			TrustedCa: &core.DataSource{
+				Specifier: &core.DataSource_Filename{
+					Filename: rootCAFilePath,
+				},
+			},
+		},
+	}
+
+	if len(subjectAltNames) > 0 {
+		ret.ValidationContext.VerifySubjectAltName = subjectAltNames
+	}
+
+	return ret
 }
 
 // ParseJwksURI parses the input URI and returns the corresponding hostname, port, and whether SSL is used.
@@ -97,4 +180,36 @@ func ParseJwksURI(jwksURI string) (string, *Port, bool, error) {
 		Name: u.Scheme,
 		Port: portNumber,
 	}, useSSL, nil
+}
+
+func protoToStruct(msg proto.Message) *types.Struct {
+	s, err := util.MessageToStruct(msg)
+	if err != nil {
+		log.Error(err.Error())
+		return &types.Struct{}
+	}
+	return s
+}
+
+func constructgRPCCallCredentials(tokenFileName, headerKey string) []*core.GrpcService_GoogleGrpc_CallCredentials {
+	// If k8s sa jwt token file exists, envoy only handles plugin credentials.
+	config := &v2alpha.FileBasedMetadataConfig{
+		SecretData: &core.DataSource{
+			Specifier: &core.DataSource_Filename{
+				Filename: tokenFileName,
+			},
+		},
+		HeaderKey: headerKey,
+	}
+	return []*core.GrpcService_GoogleGrpc_CallCredentials{
+		&core.GrpcService_GoogleGrpc_CallCredentials{
+			CredentialSpecifier: &core.GrpcService_GoogleGrpc_CallCredentials_FromPlugin{
+				FromPlugin: &core.GrpcService_GoogleGrpc_CallCredentials_MetadataCredentialsFromPlugin{
+					Name: fileBasedMetadataPlugName,
+					ConfigType: &core.GrpcService_GoogleGrpc_CallCredentials_MetadataCredentialsFromPlugin_Config{
+						Config: protoToStruct(config)},
+				},
+			},
+		},
+	}
 }

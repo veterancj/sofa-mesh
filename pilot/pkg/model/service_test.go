@@ -22,34 +22,34 @@ import (
 )
 
 var validServiceKeys = map[string]struct {
-	service Service
+	service *Service
 	labels  LabelsCollection
 }{
 	"example-service1.default|grpc,http|a=b,c=d;e=f": {
-		service: Service{
+		service: &Service{
 			Hostname: "example-service1.default",
 			Ports:    []*Port{{Name: "http", Port: 80}, {Name: "grpc", Port: 90}}},
 		labels: LabelsCollection{{"e": "f"}, {"c": "d", "a": "b"}}},
 	"my-service": {
-		service: Service{
+		service: &Service{
 			Hostname: "my-service",
 			Ports:    []*Port{{Name: "", Port: 80}}}},
 	"svc.ns": {
-		service: Service{
+		service: &Service{
 			Hostname: "svc.ns",
 			Ports:    []*Port{{Name: "", Port: 80}}}},
 	"svc||istio.io/my_tag-v1.test=my_value-v2.value": {
-		service: Service{
+		service: &Service{
 			Hostname: "svc",
 			Ports:    []*Port{{Name: "", Port: 80}}},
 		labels: LabelsCollection{{"istio.io/my_tag-v1.test": "my_value-v2.value"}}},
 	"svc|test|prod": {
-		service: Service{
+		service: &Service{
 			Hostname: "svc",
 			Ports:    []*Port{{Name: "test", Port: 80}}},
 		labels: LabelsCollection{{"prod": ""}}},
 	"svc.default.svc.cluster.local|http-test": {
-		service: Service{
+		service: &Service{
 			Hostname: "svc.default.svc.cluster.local",
 			Ports:    []*Port{{Name: "http-test", Port: 80}}}},
 }
@@ -195,6 +195,9 @@ func TestParseProtocol(t *testing.T) {
 		{"https", ProtocolHTTPS},
 		{"http2", ProtocolHTTP2},
 		{"grpc", ProtocolGRPC},
+		{"grpc-web", ProtocolGRPCWeb},
+		{"gRPC-Web", ProtocolGRPCWeb},
+		{"grpc-Web", ProtocolGRPCWeb},
 		{"udp", ProtocolUDP},
 		{"Mongo", ProtocolMongo},
 		{"mongo", ProtocolMongo},
@@ -345,5 +348,36 @@ func BenchmarkSort(b *testing.B) {
 		given := make(Hostnames, len(unsorted))
 		copy(given, unsorted)
 		sort.Sort(given)
+	}
+}
+
+func TestIsValidSubsetKey(t *testing.T) {
+	cases := []struct {
+		subsetkey string
+		expectErr bool
+	}{
+		{
+			subsetkey: "outbound|80|subset|hostname",
+			expectErr: false,
+		},
+		{
+			subsetkey: "outbound|80||hostname",
+			expectErr: false,
+		},
+		{
+			subsetkey: "outbound|80|subset||hostname",
+			expectErr: true,
+		},
+		{
+			subsetkey: "",
+			expectErr: true,
+		},
+	}
+
+	for _, c := range cases {
+		err := IsValidSubsetKey(c.subsetkey)
+		if !err != c.expectErr {
+			t.Errorf("got %v but want %v\n", err, c.expectErr)
+		}
 	}
 }
