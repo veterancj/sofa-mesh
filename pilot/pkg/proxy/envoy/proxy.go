@@ -63,23 +63,11 @@ func NewProxy(config meshconfig.ProxyConfig, node string, logLevel string, pilot
 }
 
 func (e *envoy) args(fname string, epoch int) []string {
-	startupArgs := []string{"-c", fname,
-		"--restart-epoch", fmt.Sprint(epoch),
-		"--drain-time-s", fmt.Sprint(int(convertDuration(e.config.DrainDuration) / time.Second)),
-		"--parent-shutdown-time-s", fmt.Sprint(int(convertDuration(e.config.ParentShutdownDuration) / time.Second)),
+	return []string{ "start",
+		"--config", fname,
 		"--service-cluster", e.config.ServiceCluster,
 		"--service-node", e.node,
-		"--max-obj-name-len", fmt.Sprint(e.config.StatNameLength),
-		"--allow-unknown-fields",
 	}
-
-	startupArgs = append(startupArgs, e.extraArgs...)
-
-	if e.config.Concurrency > 0 {
-		startupArgs = append(startupArgs, "--concurrency", fmt.Sprint(e.config.Concurrency))
-	}
-
-	return startupArgs
 }
 
 func (e *envoy) Run(config interface{}, epoch int, abort <-chan error) error {
@@ -101,12 +89,9 @@ func (e *envoy) Run(config interface{}, epoch int, abort <-chan error) error {
 		fname = out
 	}
 
-	// spin up a new Envoy process
+	// spin up a new Mosn process
 	args := e.args(fname, epoch)
-	if len(e.config.CustomConfigFile) == 0 {
-		args = append(args, "--v2-config-only")
-	}
-	log.Infof("Envoy command: %v", args)
+	log.Infof("Mosn command: %v", args)
 
 	/* #nosec */
 	cmd := exec.Command(e.config.BinaryPath, args...)

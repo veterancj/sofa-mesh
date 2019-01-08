@@ -110,13 +110,6 @@ func BuildVirtualHostsFromConfigAndRegistry(
 					Services: []*model.Service{svc},
 					Routes:   []route.Route{*BuildDefaultHTTPRoute(cluster, traceOperation)},
 				})
-			} else if port.Protocol.IsRPC() {
-				cluster := model.BuildSubsetKey(model.TrafficDirectionOutbound, "", svc.Hostname, port.Port)
-				out = append(out, VirtualHostWrapper{
-					Port:     port.Port,
-					Services: []*model.Service{svc},
-					Routes:   []route.Route{*buildDefaultRPCRoute(svc, cluster)},
-				})
 			}
 		}
 	}
@@ -191,7 +184,7 @@ func buildVirtualHostsForVirtualService(
 	serviceByPort := make(map[int][]*model.Service)
 	for _, svc := range servicesInVirtualService {
 		for _, port := range svc.Ports {
-			if port.Protocol.IsHTTP() || port.Protocol.IsRPC() || port.Protocol.IsX() {
+			if port.Protocol.IsHTTP() || port.Protocol.IsX() {
 				serviceByPort[port.Port] = append(serviceByPort[port.Port], svc)
 			}
 		}

@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	x_proxy "github.com/alipay/sofa-mosn/pkg/xds-config-model/filter/network/x_proxy/v2"
 	xdsapi "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/auth"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
@@ -30,7 +31,6 @@ import (
 	accesslog "github.com/envoyproxy/go-control-plane/envoy/config/filter/accesslog/v2"
 	http_conn "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
 	tcp_proxy "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/tcp_proxy/v2"
-	x_proxy "github.com/alipay/sofa-mosn/pkg/xds-config-model/filter/network/x_proxy/v2"
 	"github.com/envoyproxy/go-control-plane/envoy/type"
 	xdsutil "github.com/envoyproxy/go-control-plane/pkg/util"
 	google_protobuf "github.com/gogo/protobuf/types"
@@ -347,6 +347,7 @@ func (configgen *ConfigGeneratorImpl) buildSidecarInboundListeners(env *model.En
 		allChains := []plugin.FilterChain{}
 		var httpOpts *httpListenerOpts
 		var tcpNetworkFilters []listener.Filter
+		var xOpts *xListenerOpts
 		listenerProtocol := plugin.ModelProtocolToListenerProtocol(protocol)
 		pluginParams := &plugin.InputParams{
 			ListenerProtocol: listenerProtocol,
@@ -381,13 +382,11 @@ func (configgen *ConfigGeneratorImpl) buildSidecarInboundListeners(env *model.En
 
 		case plugin.ListenerProtocolTCP:
 			tcpNetworkFilters = buildInboundNetworkFilters(env, node, instance)
-		case plugin.ListenerTypeX:
-			listenerOpts.filterChainOpts = []*filterChainOpts{{
-				xOpts: &xListenerOpts{
-					routeConfig:      configgen.buildSidecarInboundHTTPRouteConfig(env, node, push, instance),
-					xProtocol:        parseSubProtocol(endpoint.ServicePort.Name),
-					direction:        x_proxy.INGRESS,
-				}},
+		case plugin.ListenerProtocolX:
+			xOpts = &xListenerOpts{
+				routeConfig: configgen.buildSidecarInboundHTTPRouteConfig(env, node, push, instance),
+				xProtocol:   parseSubProtocol(endpoint.ServicePort.Name),
+				direction:   x_proxy.INGRESS,
 			}
 		default:
 			log.Warnf("Unsupported inbound protocol %v for port %#v", protocol, endpoint.ServicePort)
@@ -414,6 +413,7 @@ func (configgen *ConfigGeneratorImpl) buildSidecarInboundListeners(env *model.En
 			listenerOpts.filterChainOpts = append(listenerOpts.filterChainOpts, &filterChainOpts{
 				httpOpts:        httpOpts,
 				networkFilters:  tcpNetworkFilters,
+				xOpts:           xOpts,
 				tlsContext:      chain.TLSContext,
 				match:           chain.FilterChainMatch,
 				listenerFilters: chain.ListenerFilters,
@@ -455,6 +455,8 @@ func protocolName(p model.Protocol) string {
 		return "HTTP"
 	case plugin.ListenerProtocolTCP:
 		return "TCP"
+	case plugin.ListenerProtocolX:
+		return "X"
 	default:
 		return "UNKNOWN"
 	}
@@ -514,7 +516,7 @@ func (configgen *ConfigGeneratorImpl) buildSidecarOutboundListeners(env *model.E
 	meshGateway := map[string]bool{model.IstioMeshGateway: true}
 	configs := push.VirtualServices(node, meshGateway)
 
-	var tcpListeners, httpListeners []*xdsapi.Listener
+	var tcpListeners, xListeners, httpListeners []*xdsapi.Listener
 	// For conflict resolution
 	listenerMap := make(map[string]*listenerEntry)
 	for _, service := range services {
@@ -625,7 +627,7 @@ func (configgen *ConfigGeneratorImpl) buildSidecarOutboundListeners(env *model.E
 
 				listenerOpts.filterChainOpts = buildSidecarOutboundTCPTLSFilterChainOpts(env, node, push, configs,
 					destinationIPAddress, service, servicePort, proxyLabels, meshGateway)
-			case plugin.ListenerTypeX:
+			case plugin.ListenerProtocolX:
 				listenerMapKey = fmt.Sprintf("%s:%d", listenAddress, servicePort.Port)
 				if currentListenerEntry, exists := listenerMap[listenerMapKey]; exists {
 					if !currentListenerEntry.servicePort.Protocol.IsX() {
@@ -779,10 +781,13 @@ func (configgen *ConfigGeneratorImpl) buildSidecarOutboundListeners(env *model.E
 		}
 		if l.servicePort.Protocol.IsTCP() {
 			tcpListeners = append(tcpListeners, l.listener)
+		} else if l.servicePort.Protocol.IsX() {
+			xListeners = append(xListeners, l.listener)
 		} else {
 			httpListeners = append(httpListeners, l.listener)
 		}
 	}
+	tcpListeners = append(tcpListeners, xListeners...)
 
 	return append(tcpListeners, httpListeners...)
 }
@@ -1002,6 +1007,76 @@ func buildHTTPConnectionManager(node *model.Proxy, env *model.Environment, httpO
 	return connectionManager
 }
 
+func buildXProxy(node *model.Proxy, env *model.Environment, xOpts *xListenerOpts,
+	streamFilters []*x_proxy.StreamFilter) *x_proxy.XProxy {
+
+	refresh := time.Duration(env.Mesh.RdsRefreshDelay.Seconds) * time.Second
+	if refresh == 0 {
+		// envoy crashes if 0. Will go away once we move to v2
+		refresh = 5 * time.Second
+	}
+
+	if xOpts.xProxy == nil {
+		xOpts.xProxy = &x_proxy.XProxy{}
+	}
+
+	xProxy := xOpts.xProxy
+	xProxy.AccessLog = []*accesslog.AccessLog{}
+	xProxy.StreamFilters = streamFilters
+
+	if xOpts.direction == x_proxy.INGRESS {
+		xProxy.DownstreamProtocol = x_proxy.Http2
+		xProxy.UpstreamProtocol = x_proxy.X
+	}else{
+		xProxy.DownstreamProtocol = x_proxy.X
+		xProxy.UpstreamProtocol = x_proxy.Http2
+	}
+
+	xProxy.XProtocol = xOpts.xProtocol
+	xProxy.StatPrefix = fmt.Sprintf("%s-%s", xOpts.statPrefix, xProxy.XProtocol)
+
+	if xProxy.RouteSpecifier == nil {
+		xProxy.RouteSpecifier = &x_proxy.XProxy_RouteConfig{RouteConfig: xOpts.routeConfig}
+	}
+
+	if env.Mesh.AccessLogFile != "" {
+		fl := &fileaccesslog.FileAccessLog{
+			Path: env.Mesh.AccessLogFile,
+		}
+
+		xProxy.AccessLog = []*accesslog.AccessLog{
+			{
+				ConfigType: &accesslog.AccessLog_Config{Config: util.MessageToStruct(fl)},
+				Name:       xdsutil.FileAccessLog,
+			},
+		}
+	}
+
+	if env.Mesh.EnableTracing {
+		xProxy.Tracing = &x_proxy.XProxy_Tracing{
+			OperationName: xOpts.direction,
+		}
+	}
+
+	if env.Mesh.EnableTracing {
+		tc := model.GetTraceConfig()
+		xProxy.Tracing = &x_proxy.XProxy_Tracing{
+			OperationName: xOpts.direction,
+			ClientSampling: &envoy_type.Percent{
+				Value: tc.ClientSampling,
+			},
+			RandomSampling: &envoy_type.Percent{
+				Value: tc.RandomSampling,
+			},
+			OverallSampling: &envoy_type.Percent{
+				Value: tc.OverallSampling,
+			},
+		}
+	}
+
+	return xProxy
+}
+
 // buildListener builds and initializes a Listener proto based on the provided opts. It does not set any filters.
 func buildListener(opts buildListenerOpts) *xdsapi.Listener {
 	filterChains := make([]listener.FilterChain, 0, len(opts.filterChainOpts))
@@ -1100,6 +1175,7 @@ func buildCompleteFilterChain(pluginParams *plugin.InputParams, mutable *plugin.
 	}
 
 	httpConnectionManagers := make([]*http_conn.HttpConnectionManager, len(mutable.FilterChains))
+	xProxies := make([]*x_proxy.XProxy, len(mutable.FilterChains))
 	for i, chain := range mutable.FilterChains {
 		opt := opts.filterChainOpts[i]
 
@@ -1124,15 +1200,16 @@ func buildCompleteFilterChain(pluginParams *plugin.InputParams, mutable *plugin.
 				len(httpConnectionManagers[i].HttpFilters), mutable.Listener.Name, i)
 		}
 
-		//if opt.xOpts != nil {
-		//	opt.xOpts.statPrefix = l.Name
-		//	xProxy := buildXProxy(opts.env, opt.xOpts, chain.X)
-		//	l.FilterChains[i].Filters = append(l.FilterChains[i].Filters, listener.Filter{
-		//		Name:   mosnXProxy,
-		//		Config: util.MessageToStruct(xProxy),
-		//	})
-		//	log.Debugf("attached X filter with %d x_filter options to listener %q filter chain %d", 1+len(chain.X), l.Name, i)
-		//}
+		if opt.xOpts != nil {
+			opt.xOpts.statPrefix = mutable.Listener.Name
+			xProxies[i] = buildXProxy(pluginParams.Node, opts.env, opt.xOpts, chain.X)
+			mutable.Listener.FilterChains[i].Filters = append(mutable.Listener.FilterChains[i].Filters, listener.Filter{
+				Name:   mosnXProxy,
+				ConfigType: &listener.Filter_Config{util.MessageToStruct(xProxies[i])},
+			})
+			log.Debugf("attached X filter with %d x_filter options to listener %q filter chain %d",
+				len(xProxies[i].StreamFilters), mutable.Listener.Name, i)
+		}
 		if !opts.skipUserFilters {
 			// NOTE: we have constructed the HTTP connection manager filter above and we are passing the whole filter chain
 			// EnvoyFilter crd could choose to replace the HTTP ConnectionManager that we built or can choose to add

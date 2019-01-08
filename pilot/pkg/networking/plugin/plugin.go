@@ -35,8 +35,8 @@ const (
 	ListenerProtocolTCP
 	// ListenerProtocolHTTP is an HTTP listener.
 	ListenerProtocolHTTP
-	// ListenerTypeX is an X listener.
-	ListenerTypeX
+	// ListenerProtocolX is an X listener.
+	ListenerProtocolX
 
 	// Authn is the name of the authentication plugin passed through the command line
 	Authn = "authn"
@@ -59,7 +59,7 @@ func ModelProtocolToListenerProtocol(protocol model.Protocol) ListenerProtocol {
 		model.ProtocolMongo, model.ProtocolRedis:
 		return ListenerProtocolTCP
 	case model.ProtocolX:
-		return ListenerTypeX
+		return ListenerProtocolX
 	default:
 		return ListenerProtocolUnknown
 	}

@@ -82,7 +82,7 @@ func (mixerplugin) OnOutboundListener(in *plugin.InputParams, mutable *plugin.Mu
 			mutable.FilterChains[cnum].TCP = append(mutable.FilterChains[cnum].TCP, filter)
 		}
 		return nil
-	case plugin.ListenerTypeX:
+	case plugin.ListenerProtocolX:
 		filter := buildOutboundXFilter(in.Env.Mesh, attrs, in.Node)
 		for cnum := range mutable.FilterChains {
 			mutable.FilterChains[cnum].X = append(mutable.FilterChains[cnum].X, filter)
@@ -132,8 +132,8 @@ func (mixerplugin) OnInboundListener(in *plugin.InputParams, mutable *plugin.Mut
 			mutable.FilterChains[cnum].TCP = append(mutable.FilterChains[cnum].TCP, filter)
 		}
 		return nil
-	case plugin.ListenerTypeX:
-		filter := buildInboundXFilter(in.Env.Mesh, in.Node, attrs)
+	case plugin.ListenerProtocolX:
+		filter := buildInboundXFilter(in.Env.Mesh, attrs)
 		for cnum := range mutable.FilterChains {
 			mutable.FilterChains[cnum].X = append(mutable.FilterChains[cnum].X, filter)
 		}
@@ -354,7 +354,7 @@ func buildOutboundXFilter(mesh *meshconfig.MeshConfig, attrs attributes, node *m
 	return nil
 }
 
-func buildInboundXFilter(mesh *meshconfig.MeshConfig, node *model.Proxy, attrs attributes) *x_proxy.StreamFilter {
+func buildInboundXFilter(mesh *meshconfig.MeshConfig, attrs attributes) *x_proxy.StreamFilter {
 	//TODO
 	return nil
 }

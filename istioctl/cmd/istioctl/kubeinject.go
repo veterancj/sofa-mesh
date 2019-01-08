@@ -295,8 +295,8 @@ istioctl kube-inject -f deployment.yaml -o deployment-injected.yaml --injectConf
 					IncludeInboundPorts:          includeInboundPorts,
 					ExcludeInboundPorts:          excludeInboundPorts,
 					DebugMode:                    debugMode,
-					IncludeOutboundPorts: includeOutboundPorts,
-					ExcludeOutboundPorts: excludeOutboundPorts,
+					IncludeOutboundPorts:         includeOutboundPorts,
+					ExcludeOutboundPorts:         excludeOutboundPorts,
 				}); err != nil {
 					return err
 				}

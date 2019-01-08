@@ -152,9 +152,6 @@ const (
 	// ProtocolTLS declares that the port carries TLS traffic.
 	// TLS traffic is assumed to contain SNI as part of the handshake.
 	ProtocolTLS Protocol = "TLS"
-	// ProtocolBOLT declares the the port uses BOLT.
-	// This is the default protocol for a SOFA RPC service port.
-	ProtocolBOLT Protocol = "BOLT"
 	// ProtocolUDP declares that the port uses UDP.
 	// Note that UDP protocol is not currently supported by the proxy.
 	ProtocolUDP Protocol = "UDP"
@@ -224,8 +221,6 @@ func ParseProtocol(s string) Protocol {
 		return ProtocolMongo
 	case "redis":
 		return ProtocolRedis
-	case "bolt":
-		return ProtocolBOLT
 	case "x":
 		return ProtocolX
 	}
@@ -247,16 +242,6 @@ func (p Protocol) IsHTTP2() bool {
 func (p Protocol) IsHTTP() bool {
 	switch p {
 	case ProtocolHTTP, ProtocolHTTP2, ProtocolGRPC, ProtocolGRPCWeb:
-		return true
-	default:
-		return false
-	}
-}
-
-// IsRPC is true for protocols that use RPC as transport protocol
-func (p Protocol) IsRPC() bool {
-	switch p {
-	case ProtocolBOLT:
 		return true
 	default:
 		return false
