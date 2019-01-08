@@ -20,12 +20,12 @@ import (
 	"strconv"
 	"strings"
 
+	x_proxy "github.com/alipay/sofa-mosn/pkg/xds-config-model/filter/network/x_proxy/v2"
 	xdsapi "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
 	http_conn "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
-	x_proxy "github.com/alipay/sofa-mosn/pkg/xds-config-model/filter/network/x_proxy/v2"
 	"github.com/gogo/protobuf/types"
 
 	meshconfig "istio.io/api/mesh/v1alpha1"
@@ -350,13 +350,38 @@ func buildInboundTCPFilter(mesh *meshconfig.MeshConfig, attrs attributes) listen
 }
 
 func buildOutboundXFilter(mesh *meshconfig.MeshConfig, attrs attributes, node *model.Proxy) *x_proxy.StreamFilter {
-	//TODO
-	return nil
+	return &x_proxy.StreamFilter{
+		Name: mixer,
+		Config: util.MessageToStruct(&mccpb.HttpClientConfig{
+			DefaultDestinationService: defaultConfig,
+			ServiceConfigs: map[string]*mccpb.ServiceConfig{
+				defaultConfig: {
+					DisableCheckCalls: disableClientPolicyChecks(mesh, node),
+				},
+			},
+			MixerAttributes: &mpb.Attributes{Attributes: attrs},
+			ForwardAttributes: &mpb.Attributes{Attributes: attributes{
+				"source.uid": attrUID(node),
+			}},
+			Transport: buildTransport(mesh),
+		}),
+	}
 }
 
 func buildInboundXFilter(mesh *meshconfig.MeshConfig, attrs attributes) *x_proxy.StreamFilter {
-	//TODO
-	return nil
+	return &x_proxy.StreamFilter{
+		Name: mixer,
+		Config: util.MessageToStruct(&mccpb.HttpClientConfig{
+			DefaultDestinationService: defaultConfig,
+			ServiceConfigs: map[string]*mccpb.ServiceConfig{
+				defaultConfig: {
+					DisableCheckCalls: mesh.DisablePolicyChecks,
+				},
+			},
+			MixerAttributes: &mpb.Attributes{Attributes: attrs},
+			Transport:       buildTransport(mesh),
+		}),
+	}
 }
 
 func addServiceConfig(node *model.Proxy, filterConfigs map[string]*types.Struct, config *mccpb.ServiceConfig) map[string]*types.Struct {
