@@ -8,5 +8,4 @@ If you prefer to install Istio from checking out the [istio/istio](https://githu
 
 * istio-demo.yaml - use this generated Istio demo yaml for installation without authentication enabled
 * istio-demo-auth.yaml - use this generated Istio demo yaml for installation with authentication enabled
-* helm - directory contains the Istio helm release configuration files. 
-* ansible - directory contains the Istio ansible release configuration files.
+* helm - directory contains the Istio helm release configuration files.

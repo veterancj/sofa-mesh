@@ -107,6 +107,12 @@ global:
   # Default tag for Istio images.
   tag: 0.3.0
 
+  # unix socket not yet support by mosn, original image proxyv2 should be used
+  mixerProxy:
+      hub: docker.io/istio
+      image: proxyv2
+      tag: 1.1.0-snapshot.4
+
   # monitoring port used by mixer, pilot, galley
   monitoringPort: 9093
 
@@ -128,8 +134,6 @@ global:
     binaryPath: /usr/local/bin/mosn
     sidecar:
       pilot: false
-      policy: false
-      telemetry: false
 
   proxy:
     image: proxyv2
@@ -197,6 +201,8 @@ global:
     #     Redirect only selected ports:            --includeInboundPorts="80,8080"
     includeInboundPorts: "*"
     excludeInboundPorts: ""
+    includeOutboundPorts: "*"
+    excludeOutboundPorts: ""
 
     # This controls the 'policy' in the sidecar injector.
     autoInject: enabled

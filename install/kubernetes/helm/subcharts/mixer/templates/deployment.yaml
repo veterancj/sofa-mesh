@@ -73,12 +73,11 @@
             port: {{ .Values.global.monitoringPort }}
           initialDelaySeconds: 5
           periodSeconds: 5
-{{- if .Values.global.sofamesh.sidecar.policy }}
       - name: istio-proxy
 {{- if contains "/" $.Values.global.proxy.image }}
         image: "{{ $.Values.global.proxy.image }}"
 {{- else }}
-        image: "{{ $.Values.global.hub }}/{{ $.Values.global.proxy.image }}:{{ $.Values.global.tag }}"
+        image: "{{ $.Values.global.mixerProxy.hub }}/{{ $.Values.global.mixerProxy.image }}:{{ $.Values.global.mixerProxy.tag }}"
 {{- end }}
         imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
         ports:
@@ -133,7 +132,6 @@
           readOnly: true
         - name: uds-socket
           mountPath: /sock
-{{- end }}
 {{- end }}
 
 {{- define "telemetry_container" }}
@@ -210,12 +208,11 @@
             port: {{ .Values.global.monitoringPort }}
           initialDelaySeconds: 5
           periodSeconds: 5
-{{- if .Values.global.sofamesh.sidecar.telemetry }}
       - name: istio-proxy
 {{- if contains "/" $.Values.global.proxy.image }}
         image: "{{ $.Values.global.proxy.image }}"
 {{- else }}
-        image: "{{ $.Values.global.hub }}/{{ $.Values.global.proxy.image }}:{{ $.Values.global.tag }}"
+        image: "{{ $.Values.global.mixerProxy.hub }}/{{ $.Values.global.mixerProxy.image }}:{{ $.Values.global.mixerProxy.tag }}"
 {{- end }}
         imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
         ports:
@@ -271,7 +268,6 @@
           readOnly: true
         - name: uds-socket
           mountPath: /sock
-{{- end }}
 {{- end }}
 
 {{- range $key, $spec := .Values }}

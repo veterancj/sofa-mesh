@@ -18,6 +18,7 @@ subsets:
     name: grpc-xds # direct
   - port: 15011
     name: https-xds # mTLS or non-mTLS depending on auth setting
+    targetPort: 15010
   - port: 8080
     name: http-legacy-discovery # direct
   - port: 9093
