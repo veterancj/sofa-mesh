@@ -247,7 +247,7 @@ sync: init
 # lock file, but it caused the rule for that file to get run (which
 # seems to be about obtaining a new version of the 3rd party libraries).
 $(ISTIO_OUT)/istio_is_init: bin/init.sh istio.deps | ${ISTIO_OUT}
-	ISTIO_OUT=${ISTIO_OUT} bin/init.sh
+	ISTIO_OUT=${ISTIO_OUT} sh -x bin/init.sh
 	touch $(ISTIO_OUT)/istio_is_init
 
 # init.sh downloads mosn
@@ -655,8 +655,8 @@ isti%.yaml: $(HELM) $(HOME)/.helm helm-repo-add
 		install/kubernetes/helm/istio >> install/kubernetes/$@
 
 generate_yaml: $(HELM) $(HOME)/.helm helm-repo-add
-	$(HELM) dep update --skip-refresh install/kubernetes/helm/istio
-	./install/updateVersion.sh -a ${HUB},${TAG} >/dev/null 2>&1
+	#$(HELM) dep update --skip-refresh install/kubernetes/helm/istio
+	#./install/updateVersion.sh -a ${HUB},${TAG} >/dev/null 2>&1
 	cat install/kubernetes/namespace.yaml > install/kubernetes/istio.yaml
 	$(HELM) template --set global.tag=${TAG} \
 		--name=istio \

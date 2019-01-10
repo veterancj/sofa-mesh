@@ -87,9 +87,9 @@ docker.sidecar_injector:$(ISTIO_DOCKER)/sidecar-injector
 # BUILD_PRE tells $(DOCKER_RULE) to run the command specified before executing a docker build
 # BUILD_ARGS tells  $(DOCKER_RULE) to execute a docker build with the specified commands
 
-#docker.proxy_debug: BUILD_PRE=mv envoy-debug-${PROXY_REPO_SHA} envoy &&
-#docker.proxy_debug: BUILD_ARGS=--build-arg proxy_version=istio-proxy:${PROXY_REPO_SHA} --build-arg istio_version=${VERSION}
-#docker.proxy_debug: pilot/docker/Dockerfile.proxy_debug
+docker.proxy_debug: BUILD_PRE=mv mosn-debug-${ISTIO_MOSN_VERSION} mosn &&
+docker.proxy_debug: BUILD_ARGS=--build-arg proxy_version=istio-proxy:${PROXY_REPO_SHA} --build-arg istio_version=${VERSION}
+docker.proxy_debug: pilot/docker/Dockerfile.proxy_debug
 docker.proxy_debug: tools/deb/envoy_bootstrap_v2.json
 docker.proxy_debug: ${ISTIO_MOSN_DEBUG_PATH}
 docker.proxy_debug: $(ISTIO_OUT)/pilot-agent
