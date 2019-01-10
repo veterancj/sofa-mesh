@@ -89,7 +89,7 @@
         args:
         - proxy
         - --binaryPath
-        - {{ $.Values.global.sofamesh.binaryPath }}
+        - {{ $.Values.global.mixerProxy.binaryPath }}
         - --serviceCluster
         - istio-policy
         - --templateFile
@@ -228,7 +228,7 @@
         - {{ $.Values.global.proxy.proxyDomain }}
 {{- end }}
         - --binaryPath
-        - {{ $.Values.global.sofamesh.binaryPath }}
+        - {{ $.Values.global.mixerProxy.binaryPath }}
         - --serviceCluster
         - istio-telemetry
         - --templateFile

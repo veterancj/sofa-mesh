@@ -53,7 +53,7 @@ function usage() {
   echo '      outbound traffic (i.e. "*") is being redirected (default to $ISTIO_SERVICE_EXCLUDE_CIDR).'
   echo ''
   # shellcheck disable=SC2016
-  echo 'Using environment variables in $ISTIO_SIDECAR_CONFIG (default: /var/lib/istio/envoy/sidecar.env)
+  echo 'Using environment variables in $ISTIO_SIDECAR_CONFIG (default: /var/lib/istio/envoy/sidecar.env)'
 }
 
 function dump {
@@ -93,8 +93,6 @@ INBOUND_PORTS_INCLUDE=${ISTIO_INBOUND_PORTS-}
 INBOUND_PORTS_EXCLUDE=${ISTIO_LOCAL_EXCLUDE_PORTS-}
 OUTBOUND_IP_RANGES_INCLUDE=${ISTIO_SERVICE_CIDR-}
 OUTBOUND_IP_RANGES_EXCLUDE=${ISTIO_SERVICE_EXCLUDE_CIDR-}
-OUTBOUND_PORTS_INCLUDE=${ISTIO_SERVICE_PORTS-}
-OUTBOUND_PORTS_EXCLUDE=${ISTIO_SERVICE_EXCLUDE_PORTS-}
 
 while getopts ":p:u:m:b:d:i:x:o:z:h" opt; do
   case ${opt} in

@@ -112,6 +112,7 @@ global:
       hub: docker.io/istio
       image: proxyv2
       tag: 1.1.0-snapshot.4
+      binaryPath: /usr/local/bin/envoy
 
   # monitoring port used by mixer, pilot, galley
   monitoringPort: 9093

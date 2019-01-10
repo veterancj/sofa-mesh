@@ -34,6 +34,13 @@ global:
   # Default tag for Istio images.
   tag: 0.3.0
 
+  # unix socket not yet support by mosn, original image proxyv2 should be used
+  mixerProxy:
+    hub: docker.io/istio
+    image: proxyv2
+    tag: 1.1.0-snapshot.4
+    binaryPath: /usr/local/bin/envoy
+
   sofamesh:
     binaryPath: /usr/local/bin/mosn
 
