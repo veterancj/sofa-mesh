@@ -182,18 +182,6 @@ function merge_files_docker() {
   cat $SRC/bookinfo.sidecars.yaml.tmpl >> "$BOOKINFO"
 }
 
-function gen_platforms_files() {
-    # This loop only executes once, with platform=consul.
-    # shellcheck disable=SC2043
-    for platform in consul; do
-        cp -R "$ROOT/install/$platform/templates" $TEMP_DIR/templates
-        cp -a "$ROOT/samples/bookinfo/platform/$platform/templates/." $TEMP_DIR/templates/
-        update_istio_install_docker
-        merge_files_docker $platform
-        rm -R $TEMP_DIR/templates
-    done
-}
-
 function gen_citadel_extra_files() {
     SRC_DIR=$ROOT/install/kubernetes/citadel_extras
     DEST=$DEST_DIR/install/kubernetes
@@ -231,9 +219,6 @@ update_version_file
 
 # Generate the istio*.yaml files
 gen_istio_files
-
-# Generate platform files (consul)
-gen_platforms_files
 
 # Generate extra Citadel files from their templates
 gen_citadel_extra_files
