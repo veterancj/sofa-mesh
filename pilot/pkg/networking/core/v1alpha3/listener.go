@@ -1010,12 +1010,6 @@ func buildHTTPConnectionManager(node *model.Proxy, env *model.Environment, httpO
 func buildXProxy(node *model.Proxy, env *model.Environment, xOpts *xListenerOpts,
 	streamFilters []*x_proxy.StreamFilter) *x_proxy.XProxy {
 
-	refresh := time.Duration(env.Mesh.RdsRefreshDelay.Seconds) * time.Second
-	if refresh == 0 {
-		// envoy crashes if 0. Will go away once we move to v2
-		refresh = 5 * time.Second
-	}
-
 	if xOpts.xProxy == nil {
 		xOpts.xProxy = &x_proxy.XProxy{}
 	}
