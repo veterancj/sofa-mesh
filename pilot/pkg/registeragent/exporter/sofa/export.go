@@ -17,9 +17,9 @@ package sofa
 import (
 	"encoding/json"
 	"fmt"
+	"fortio.org/fortio/log"
 	"github.com/gin-gonic/gin"
 	"io/ioutil"
-	"istio.io/fortio/log"
 	"net/http"
 	"strings"
 )
