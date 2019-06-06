@@ -29,7 +29,7 @@ spec:
         - --configPath
         - /etc/istio/proxy
         - --binaryPath
-        - /usr/local/bin/envoy
+        - /usr/local/bin/mosn
         - --serviceCluster
         - pi.default
         - --drainDuration

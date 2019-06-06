@@ -34,7 +34,7 @@ spec:
         - --configPath
         - /etc/istio/proxy
         - --binaryPath
-        - /usr/local/bin/envoy
+        - /usr/local/bin/mosn
         - --serviceCluster
         - hello.$(POD_NAMESPACE)
         - --drainDuration

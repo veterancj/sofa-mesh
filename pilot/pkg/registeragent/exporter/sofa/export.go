@@ -67,12 +67,12 @@ func (r *SimpleRpcInfoExporter) GetRpcServiceInfo(c *gin.Context) {
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		log.Errf("new local rpc request failed: ", err)
+		log.Errf("new local rpc request failed: %v", err)
 		return
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Errf("get local rpc info failed: ", err)
+		log.Errf("get local rpc info failed: %v", err)
 		return
 	}
 	defer resp.Body.Close()
@@ -83,7 +83,7 @@ func (r *SimpleRpcInfoExporter) GetRpcServiceInfo(c *gin.Context) {
 		info := HealthInfo{}
 		err := json.Unmarshal(body, &info)
 		if err != nil {
-			log.Errf("Unmarshal rpc info failed: ", err)
+			log.Errf("Unmarshal rpc info failed: %v", err)
 			return
 		}
 		interfacesDTO := InterfacesDTO{}
@@ -94,7 +94,7 @@ func (r *SimpleRpcInfoExporter) GetRpcServiceInfo(c *gin.Context) {
 				fmt.Println(k)
 				uniqueInterfaceName := strings.Split(k, ":")
 				if len(uniqueInterfaceName) != 3 {
-					log.Errf("interface name: %v format error: %v", k)
+					log.Errf("interface name: %v format error: %v", k, "len(uniqueInterfaceName) != 3")
 				}
 				providerInterfaceDto := ProviderInterface{uniqueInterfaceName[1], "", "Protobuf", uniqueInterfaceName[2]}
 				interfacesDTO.Providers = append(interfacesDTO.Providers, providerInterfaceDto)

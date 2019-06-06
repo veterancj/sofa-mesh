@@ -42,14 +42,14 @@ func newEtcdClient(config *Config) *clientv3.Client {
 	if !useNonSecureClient(config) {
 		cert, err := tls.LoadX509KeyPair(config.EtcdCertFile, config.EtcdKeyFile)
 		if err != nil {
-			log.Errora("LoadX509KeyPair err:%v", err)
+			log.Errorf("LoadX509KeyPair err:%v", err)
 			return nil
 		}
 
 		// Load CA cert
 		caCert, err := ioutil.ReadFile(config.EtcdCaCertFile)
 		if err != nil {
-			log.Errora("ReadFile err:%v", err)
+			log.Errorf("ReadFile err:%v", err)
 			return nil
 		}
 
@@ -68,7 +68,7 @@ func newEtcdClient(config *Config) *clientv3.Client {
 			DialTimeout: dialTimeout,
 		})
 		if err != nil {
-			log.Errora("new client v3 err:%v", err)
+			log.Errorf("new client v3 err:%v", err)
 			return nil
 		}
 		return client
@@ -81,7 +81,7 @@ func newEtcdClient(config *Config) *clientv3.Client {
 		DialTimeout: dialTimeout,
 	})
 	if err != nil {
-		log.Errora("new client v3 err:%v", err)
+		log.Errorf("new client v3 err:%v", err)
 		return nil
 	}
 
