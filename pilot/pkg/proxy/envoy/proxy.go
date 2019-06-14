@@ -33,6 +33,10 @@ import (
 const (
 	// epochFileTemplate is a template for the root config JSON
 	epochFileTemplate = "envoy-rev%d.json"
+	CmdStart          = "start"
+	ArgConfig         = "--config"
+	ArgServiceCluster = "--service-cluster"
+	ArgServiceNode    = "--service-node"
 
 	// drainFile is the location of the bootstrap config used for draining on istio-proxy termination
 	drainFile = "/var/lib/istio/envoy/envoy_bootstrap_drain.json"
@@ -66,17 +70,11 @@ func NewProxy(config meshconfig.ProxyConfig, node string, logLevel string, pilot
 }
 
 func (e *envoy) args(fname string, epoch int, bootstrapConfig string) []string {
-	startupArgs := []string{"-c", fname,
-		"--restart-epoch", fmt.Sprint(epoch),
-		"--drain-time-s", fmt.Sprint(int(convertDuration(e.config.DrainDuration) / time.Second)),
-		"--parent-shutdown-time-s", fmt.Sprint(int(convertDuration(e.config.ParentShutdownDuration) / time.Second)),
-		"--service-cluster", e.config.ServiceCluster,
-		"--service-node", e.node,
-		"--max-obj-name-len", fmt.Sprint(e.config.StatNameLength),
-		"--allow-unknown-fields",
+	startupArgs := []string{CmdStart,
+		ArgConfig, fname,
+		ArgServiceCluster, e.config.ServiceCluster,
+		ArgServiceNode, e.node,
 	}
-
-	startupArgs = append(startupArgs, e.extraArgs...)
 
 	if bootstrapConfig != "" {
 		bytes, err := ioutil.ReadFile(bootstrapConfig)
@@ -85,10 +83,6 @@ func (e *envoy) args(fname string, epoch int, bootstrapConfig string) []string {
 		} else {
 			startupArgs = append(startupArgs, "--config-yaml", string(bytes))
 		}
-	}
-
-	if e.config.Concurrency > 0 {
-		startupArgs = append(startupArgs, "--concurrency", fmt.Sprint(e.config.Concurrency))
 	}
 
 	return startupArgs
@@ -115,9 +109,9 @@ func (e *envoy) Run(config interface{}, epoch int, abort <-chan error) error {
 		fname = out
 	}
 
-	// spin up a new Envoy process
+	// spin up a new Mosn process
 	args := e.args(fname, epoch, os.Getenv("ISTIO_BOOTSTRAP_OVERRIDE"))
-	log.Infof("Envoy command: %v", args)
+	log.Infof("Mosn command: %v", args)
 
 	/* #nosec */
 	cmd := exec.Command(e.config.BinaryPath, args...)

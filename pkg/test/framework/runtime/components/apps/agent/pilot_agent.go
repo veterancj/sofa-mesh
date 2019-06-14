@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"k8s.io/apimachinery/pkg/util/yaml"
 	"net"
 	"net/http"
 	netUrl "net/url"
@@ -228,6 +229,8 @@ type pilotAgent struct {
 	ports                     []*MappedPort
 	nodeID                    string
 	yamlFile                  string
+	// FIXME mosn only support json config
+	jsonFile                  string
 	ownedDir                  string
 	serviceEntry              model.Config
 	discoveryFilterGrpcServer *grpc.Server
@@ -302,8 +305,13 @@ func (a *pilotAgent) Close() (err error) {
 	err = multierror.Append(err, a.envoy.Stop()).ErrorOrNil()
 	if a.ownedDir != "" {
 		_ = os.RemoveAll(a.ownedDir)
-	} else if a.yamlFile != "" {
-		_ = os.Remove(a.yamlFile)
+	} else {
+		if a.yamlFile != "" {
+			_ = os.Remove(a.yamlFile)
+		}
+		if a.jsonFile != ""{
+			_ = os.Remove(a.jsonFile)
+		}
 	}
 	// Free any reserved ports.
 	if e := a.portMgr.Close(); e != nil {
@@ -402,6 +410,8 @@ func (a *pilotAgent) start(serviceName, version string, serviceManager *service.
 	// Start Envoy with the configuration
 	logPrefix := fmt.Sprintf("[ENVOY-%s]", nodeID)
 	a.envoy.YamlFile = a.yamlFile
+	a.envoy.JsonFile = a.jsonFile
+	a.envoy.NodeId = nodeID
 	a.envoy.LogEntryPrefix = logPrefix
 	if err = a.envoy.Start(); err != nil {
 		return err
@@ -447,6 +457,11 @@ func (a *pilotAgent) createYamlFile(serviceName, nodeID string, f *PilotAgentFac
 		return err
 	}
 
+	a.jsonFile, err = createTempfile(outDir, "istio_agent_envoy_config", ".json")
+	if err != nil {
+		return err
+	}
+
 	// Apply the template with the current configuration
 	var filled bytes.Buffer
 	w := bufio.NewWriter(&filled)
@@ -468,6 +483,13 @@ func (a *pilotAgent) createYamlFile(serviceName, nodeID string, f *PilotAgentFac
 	// Write the content of the file.
 	configBytes := filled.Bytes()
 	if err := ioutil.WriteFile(a.yamlFile, configBytes, 0644); err != nil {
+		return err
+	}
+	configBytes, err = yaml.ToJSON(configBytes)
+	if err != nil {
+		return err
+	}
+	if err := ioutil.WriteFile(a.jsonFile, configBytes, 0644); err != nil {
 		return err
 	}
 	return nil

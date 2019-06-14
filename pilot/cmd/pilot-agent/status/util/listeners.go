@@ -45,7 +45,7 @@ func GetInboundListeningPorts(adminPort uint16) (map[uint16]bool, string, error)
 		l = strings.Trim(strings.TrimSpace(l), "\"")
 
 		ipAddrParts := strings.Split(l, ":")
-		if len(ipAddrParts) < 2 {
+		if len(ipAddrParts) < 2 && l != "virtual"{
 			return nil, "", fmt.Errorf("failed parsing Envoy listener: %s", l)
 		}
 		// Before checking if listener is local, removing port portion of the address

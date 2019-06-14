@@ -67,7 +67,7 @@ function set_download_command () {
     # Try curl.
     if command -v curl > /dev/null; then
         if curl --version | grep Protocols  | grep https > /dev/null; then
-	       DOWNLOAD_COMMAND='curl -fLSsO'
+	       DOWNLOAD_COMMAND='curl -fLSs'
 	       return
         fi
         echo curl does not support https, will try wget for downloading files.
@@ -93,7 +93,6 @@ if [ -z "${PROXY_REPO_SHA:-}" ] ; then
 fi
 
 # Normally set by the Makefile.
-ISTIO_ENVOY_MAC_RELEASE_URL=${ISTIO_ENVOY_MAC_RELEASE_URL:-https://github.com/istio/proxy/releases/download/1.0.2/istio-proxy-1.0.2-macos.tar.gz}
 # ISTIO_MOSN_VERSION=${ISTIO_MOSN_VERSION:-${PROXY_REPO_SHA}}
 ISTIO_MOSN_DEBUG_URL=${ISTIO_MOSN_DEBUG_URL:-https://github.com/alipay/sofa-mosn/releases/download/${ISTIO_MOSN_VERSION}/mosn}
 ISTIO_MOSN_RELEASE_URL=${ISTIO_MOSN_RELEASE_URL:-https://github.com/alipay/sofa-mosn/releases/download/${ISTIO_MOSN_VERSION}/mosn}

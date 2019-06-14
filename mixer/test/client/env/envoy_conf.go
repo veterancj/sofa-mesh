@@ -24,7 +24,9 @@ import (
 	"github.com/gogo/protobuf/proto"
 )
 
-const envoyConfTemplYAML = `
+const (
+	jsonFormat = "json"
+	envoyConfTemplYAML = `
 admin:
   access_log_path: {{.AccessLogPath}}
   address:
@@ -139,14 +141,18 @@ static_resources:
           stat_prefix: inbound_tcp
           cluster: backend
 `
+)
 
 // CreateEnvoyConf create envoy config.
-func (s *TestSetup) CreateEnvoyConf(path string) error {
+func (s *TestSetup) CreateEnvoyConf(path string, format string) error {
 	if s.stress {
 		s.AccessLogPath = "/dev/null"
 	}
 
 	confTmpl := envoyConfTemplYAML
+	if format == jsonFormat {
+		confTmpl = mosnConfigTempJson
+	}
 	if s.EnvoyTemplate != "" {
 		confTmpl = s.EnvoyTemplate
 	}

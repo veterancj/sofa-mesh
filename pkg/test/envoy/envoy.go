@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"sync"
 
+	"istio.io/istio/pilot/pkg/proxy/envoy"
 	"istio.io/istio/pkg/test/env"
 )
 
@@ -34,7 +35,7 @@ const (
 	// DefaultLogEntryPrefix the default prefix for all log lines from Envoy.
 	DefaultLogEntryPrefix = "[ENVOY]"
 
-	envoyFileNamePattern = "^envoy$|^envoy-[a-f0-9]+$|^envoy-debug-[a-f0-9]+$"
+	envoyFileNamePattern = "^mosn$|^mosn-[a-f0-9]+$|^mosn-debug-[a-f0-9]+$"
 )
 
 // LogLevel represents the log level to use for Envoy.
@@ -67,6 +68,8 @@ var (
 type Envoy struct {
 	// YamlFile (required) the v2 yaml config file for Envoy.
 	YamlFile string
+	// FIXME mosn not support yaml conf
+	JsonFile string
 	// BinPath (optional) the path to the Envoy binary. If not set, uses the debug binary under ISTIO_OUT. If the
 	// ISTIO_OUT environment variable is not set, the default location under GOPATH is assumed. If ISTIO_OUT contains
 	// multiple debug binaries, the most recent file is used.
@@ -80,6 +83,8 @@ type Envoy struct {
 
 	cmd    *exec.Cmd
 	baseID uint32
+
+	NodeId string
 }
 
 // Start starts the Envoy process.
@@ -160,22 +165,33 @@ func (e *Envoy) returnBaseID() {
 }
 
 func (e *Envoy) getCommandArgs() []string {
-	// Prefix Envoy log entries with [ENVOY] to make them distinct from other logs if mixed within the same stream (e.g. stderr)
-	logFormat := e.getLogEntryPrefix() + " [%Y-%m-%d %T.%e][%t][%l][%n] %v"
+	//// Prefix Envoy log entries with [ENVOY] to make them distinct from other logs if mixed within the same stream (e.g. stderr)
+	//logFormat := e.getLogEntryPrefix() + " [%Y-%m-%d %T.%e][%t][%l][%n] %v"
+	//
+	//args := []string{
+	//	"--base-id",
+	//	strconv.FormatUint(uint64(e.baseID), 10),
+	//	// Always force v2 config.
+	//	"--v2-config-only",
+	//	"--config-path",
+	//	e.YamlFile,
+	//	"--log-level",
+	//	string(e.getLogLevel()),
+	//	"--log-format",
+	//	logFormat,
+	//}
+	//
+	//if e.LogFilePath != "" {
+	//	args = append(args, "--log-path", e.LogFilePath)
+	//}
+	//return args
 
 	args := []string{
-		"--base-id",
-		strconv.FormatUint(uint64(e.baseID), 10),
-		"--config-path",
-		e.YamlFile,
-		"--log-level",
-		string(e.getLogLevel()),
-		"--log-format",
-		logFormat,
-	}
-
-	if e.LogFilePath != "" {
-		args = append(args, "--log-path", e.LogFilePath)
+		envoy.CmdStart,
+		envoy.ArgConfig, e.JsonFile,
+		envoy.ArgServiceNode, e.NodeId,
+		// FIXME mock the value
+		envoy.ArgServiceCluster,"mock-servicecluster",
 	}
 	return args
 }

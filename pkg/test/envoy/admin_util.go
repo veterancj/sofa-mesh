@@ -21,7 +21,7 @@ import (
 	"net/http"
 	"time"
 
-	envoy_admin_v2alpha "github.com/envoyproxy/go-control-plane/envoy/admin/v2alpha"
+	"github.com/envoyproxy/go-control-plane/envoy/admin/v2alpha"
 	routeapi "github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/types"
@@ -99,13 +99,19 @@ func GetServerInfo(adminPort int) (ServerInfo, error) {
 func WaitForHealthCheckLive(adminPort int) error {
 	endTime := time.Now().Add(healthCheckTimeout)
 	for {
-		var info ServerInfo
-		info, err := GetServerInfo(adminPort)
+		//var info ServerInfo
+		//info, err := GetServerInfo(adminPort)
+		//if err == nil {
+		//	if info.HealthCheckState == HealthCheckLive {
+		//		// It's running, we can return now.
+		//		return nil
+		//	}
+		//}
+
+		// FIXME get mosn stats
+		_, err := doEnvoyGet("stats", adminPort)
 		if err == nil {
-			if info.HealthCheckState == HealthCheckLive {
-				// It's running, we can return now.
-				return nil
-			}
+			return nil
 		}
 
 		// Stop trying after the timeout
@@ -130,7 +136,8 @@ func GetConfigDumpStr(adminPort int) (string, error) {
 
 // GetConfigDump polls Envoy admin port for the config dump and returns the response.
 func GetConfigDump(adminPort int) (*envoy_admin_v2alpha.ConfigDump, error) {
-	buffer, err := doEnvoyGet("config_dump", adminPort)
+	// FIXME mosn's path is 'api/v1/config_dump'
+	buffer, err := doEnvoyGet("api/v1/config_dump", adminPort)
 	if err != nil {
 		return nil, err
 	}

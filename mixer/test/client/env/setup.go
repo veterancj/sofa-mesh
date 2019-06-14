@@ -19,10 +19,12 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
-	rpc "github.com/gogo/googleapis/google/rpc"
+	"github.com/gogo/googleapis/google/rpc"
 
 	mixerpb "istio.io/api/mixer/v1"
 	"istio.io/istio/pkg/test"
@@ -184,7 +186,7 @@ func (s *TestSetup) SetMixerSourceUID(uid string) {
 // SetUp setups Envoy, Mixer, and Backend server for test.
 func (s *TestSetup) SetUp() error {
 	var err error
-	s.envoy, err = s.NewEnvoy()
+	s.envoy, err = s.NewMosn()
 	if err != nil {
 		log.Printf("unable to create Envoy %v", err)
 		return err
@@ -256,7 +258,7 @@ func (s *TestSetup) ReStartEnvoy() {
 	log.Printf("new allocated ports are %v:", s.ports)
 	var err error
 	s.epoch++
-	s.envoy, err = s.NewEnvoy()
+	s.envoy, err = s.NewMosn()
 	if err != nil {
 		s.t.Errorf("unable to re-start envoy %v", err)
 		return
@@ -376,20 +378,38 @@ func (s *TestSetup) WaitEnvoyReady() {
 	total := 3 * time.Second
 	var stats map[string]int
 	for attempt := 0; attempt < int(total/delay); attempt++ {
-		statsURL := fmt.Sprintf("http://localhost:%d/stats?format=json&usedonly", s.Ports().AdminPort)
+		// TODO get mosn stats, now check the num of listener
+		statsURL := fmt.Sprintf("http://localhost:%d/stats", s.Ports().AdminPort)
 		code, respBody, errGet := HTTPGet(statsURL)
 		if errGet == nil && code == 200 {
-			stats = s.unmarshalStats(respBody)
-			warmingListeners, hasListeners := stats["listener_manager.total_listeners_warming"]
-			warmingClusters, hasClusters := stats["cluster_manager.warming_clusters"]
-			if hasListeners && hasClusters && warmingListeners == 0 && warmingClusters == 0 {
-				return
+			log.Printf("stats resp %s:", respBody)
+			if _, lnum, err := GetMosnStats(respBody); err != nil {
+				s.t.Fatalf("mosn failed to get ready: %v", err)
+			} else {
+				if lnum != 0 {
+					return
+				}
 			}
 		}
 		time.Sleep(delay)
 	}
 
 	s.t.Fatalf("envoy failed to get ready: %v", stats)
+}
+
+func GetMosnStats(statsbody string) (int, int, error) {
+	stats := strings.Split(statsbody, "\n")
+	clusters := strings.Split(stats[0], ":")
+	listeners := strings.Split(stats[1], ":")
+	cnum, err := strconv.Atoi(strings.TrimSpace(clusters[1]))
+	if err != nil {
+		return 0, 0, nil
+	}
+	lnum, err := strconv.Atoi(strings.TrimSpace(listeners[1]))
+	if err != nil {
+		return 0, 0, nil
+	}
+	return cnum, lnum, nil
 }
 
 // UnmarshalStats Unmarshals Envoy stats from JSON format into a map, where stats name is

@@ -16,11 +16,11 @@ package env
 
 import (
 	"fmt"
+	"istio.io/istio/pilot/pkg/proxy/envoy"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"time"
 
 	"istio.io/istio/pkg/test/env"
@@ -33,11 +33,11 @@ type Envoy struct {
 	baseID string
 }
 
-// NewEnvoy creates a new Envoy struct and starts envoy.
-func (s *TestSetup) NewEnvoy() (*Envoy, error) {
+// NewMosn creates a new Envoy struct and starts mson.
+func (s *TestSetup) NewMosn() (*Envoy, error) {
 	confPath := filepath.Join(env.IstioOut, fmt.Sprintf("config.conf.%v.yaml", s.ports.AdminPort))
 	log.Printf("Envoy config: in %v\n", confPath)
-	if err := s.CreateEnvoyConf(confPath); err != nil {
+	if err := s.CreateEnvoyConf(confPath, jsonFormat); err != nil {
 		return nil, err
 	}
 
@@ -47,30 +47,15 @@ func (s *TestSetup) NewEnvoy() (*Envoy, error) {
 	}
 
 	baseID := ""
-	args := []string{"-c", confPath,
-		"--drain-time-s", "1",
-		"--allow-unknown-fields"}
-	if s.stress {
-		args = append(args, "--concurrency", "10")
-	} else {
-		// debug is far too verbose.
-		args = append(args, "-l", debugLevel, "--concurrency", "1")
-	}
-	if s.disableHotRestart {
-		args = append(args, "--disable-hot-restart")
-	} else {
-		baseID = strconv.Itoa(int(s.testName))
-		args = append(args,
-			// base id is shared between restarted envoys
-			"--base-id", baseID,
-			"--parent-shutdown-time-s", "1",
-			"--restart-epoch", strconv.Itoa(s.epoch))
-	}
+	// use the mosn's args
+	args := []string{ envoy.CmdStart,
+		envoy.ArgConfig, confPath}
+
 	if s.EnvoyParams != nil {
 		args = append(args, s.EnvoyParams...)
 	}
 	/* #nosec */
-	envoyPath := filepath.Join(env.IstioBin, "envoy")
+	envoyPath := filepath.Join(env.IstioBin, "mosn")
 	if path, exists := os.LookupEnv("ENVOY_PATH"); exists {
 		envoyPath = path
 	}
@@ -93,8 +78,8 @@ func (s *Envoy) Start() error {
 	if err != nil {
 		return err
 	}
-
-	url := fmt.Sprintf("http://localhost:%v/server_info", s.ports.AdminPort)
+	// use mosn xxx/listeners to check process
+	url := fmt.Sprintf("http://localhost:%v/listeners", s.ports.AdminPort)
 	return WaitForHTTPServer(url)
 }
 
