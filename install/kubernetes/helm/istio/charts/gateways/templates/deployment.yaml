@@ -112,10 +112,6 @@ spec:
         {{- end}}
           - --binaryPath
           - {{ $.Values.global.sofamesh.binaryPath }}
-          - -v
-          - "2"
-          - --discoveryRefreshDelay
-          - '1s' #discoveryRefreshDelay
           - --drainDuration
           - '45s' #drainDuration
           - --parentShutdownDuration
