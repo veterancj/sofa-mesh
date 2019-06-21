@@ -94,8 +94,8 @@ fi
 
 # Normally set by the Makefile.
 # ISTIO_MOSN_VERSION=${ISTIO_MOSN_VERSION:-${PROXY_REPO_SHA}}
-ISTIO_MOSN_DEBUG_URL=${ISTIO_MOSN_DEBUG_URL:-https://github.com/alipay/sofa-mosn/releases/download/${ISTIO_MOSN_VERSION}/mosn}
-ISTIO_MOSN_RELEASE_URL=${ISTIO_MOSN_RELEASE_URL:-https://github.com/alipay/sofa-mosn/releases/download/${ISTIO_MOSN_VERSION}/mosn}
+ISTIO_MOSN_DEBUG_URL=${ISTIO_MOSN_DEBUG_URL:-https://github.com/sofastack/sofa-mesh/releases/download/${ISTIO_MOSN_VERSION}/mosn}
+ISTIO_MOSN_RELEASE_URL=${ISTIO_MOSN_RELEASE_URL:-https://github.com/sofastack/sofa-mesh/releases/download/${ISTIO_MOSN_VERSION}/mosn}
 # TODO Change url when official mosn release for MAC is available
 ISTIO_MOSN_MAC_RELEASE_URL=${ISTIO_MOSN_MAC_RELEASE_URL:-https://storage.googleapis.com/istio-on-macos/releases/0.7.1/istio-proxy-0.7.1-macos.tar.gz}
 
