@@ -156,8 +156,8 @@ endif
 ifeq ($(ISTIO_MOSN_VERSION),)
   export ISTIO_MOSN_VERSION:=$(shell grep MOSN_VERSION istio.deps  -A 4 | grep version | cut -f 4 -d '"')
 endif
-export ISTIO_MOSN_DEBUG_URL ?= https://github.com/alipay/sofa-mosn/releases/download/${ISTIO_MOSN_VERSION}/mosn
-export ISTIO_MOSN_RELEASE_URL ?= https://github.com/alipay/sofa-mosn/releases/download/${ISTIO_MOSN_VERSION}/mosn
+export ISTIO_MOSN_DEBUG_URL ?= https://github.com/sofastack/sofa-mesh/releases/download/${ISTIO_MOSN_VERSION}/mosn
+export ISTIO_MOSN_RELEASE_URL ?= https://github.com/sofastack/sofa-mesh/releases/download/${ISTIO_MOSN_VERSION}/mosn
 export ISTIO_MOSN
 
 # Use mosn build from local workspace
