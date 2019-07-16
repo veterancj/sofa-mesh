@@ -30,4 +30,6 @@ const (
 	CloudFoundryRegistry ServiceRegistry = "CloudFoundry"
 	// ZookeeperRegistry environment flag
 	ZookeeperRegistry = "Zookeeper"
+	// JsfRegistry environment flag
+	JsfRegistry = "Jsf"
 )

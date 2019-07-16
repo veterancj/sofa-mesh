@@ -164,6 +164,8 @@ const (
 	ProtocolX Protocol = "X"
 	// ProtocolUnsupported - value to signify that the protocol is unsupported
 	ProtocolUnsupported Protocol = "UnsupportedProtocol"
+	// ProtocolJsf declares that the port carries whatever protocol jsf traffic
+	ProtocolJsf Protocol = "JSF"
 )
 
 // AddressFamily indicates the kind of transport used to reach a NetworkEndpoint
@@ -223,6 +225,9 @@ func ParseProtocol(s string) Protocol {
 		return ProtocolBOLT
 	case "x":
 		return ProtocolX
+	case "jsf":
+		return ProtocolJsf;
+
 	}
 
 	return ProtocolUnsupported

@@ -19,6 +19,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io/ioutil"
+	"istio.io/istio/pilot/pkg/serviceregistry/jsf"
 	"net"
 	"net/http"
 	"os"
@@ -126,11 +127,17 @@ type ZookeeperArgs struct {
 	Root      string
 }
 
+type JsfRegistryArgs struct {
+	serviceNameStr string
+	refreshPeriod  int
+}
+
 // ServiceArgs provides the composite configuration for all service registries in the system.
 type ServiceArgs struct {
 	Registries []string
 	Consul     ConsulArgs
 	Zookeeper  ZookeeperArgs
+	JsfRegistry	JsfRegistryArgs
 }
 
 // PilotArgs provides all of the configuration parameters for the Pilot discovery service.
@@ -685,6 +692,21 @@ func (s *Server) initServiceControllers(args *PilotArgs) error {
 					ServiceDiscovery: zkctl,
 					ServiceAccounts:  zkctl,
 					Controller:       zkctl,
+				})
+		case serviceregistry.JsfRegistry:
+			log.Infof("JsfRegistry config: serviceNameStr_%v-refreshPeriod_%d", args.Service.JsfRegistry.serviceNameStr, args.Service.JsfRegistry.refreshPeriod)
+			jsfctl, jsferr := jsf.NewController(
+				args.Service.JsfRegistry.serviceNameStr, args.Service.JsfRegistry.refreshPeriod)
+			if jsferr != nil {
+				return fmt.Errorf("failed to create jsf registry controller: %v", jsferr)
+			}
+			serviceControllers.AddRegistry(
+				aggregate.Registry{
+					Name:             serviceregistry.ServiceRegistry(r),
+					ClusterID:        string(serviceregistry.JsfRegistry),
+					ServiceDiscovery: jsfctl,
+					ServiceAccounts:  jsfctl,
+					Controller:       jsfctl,
 				})
 
 		default:
