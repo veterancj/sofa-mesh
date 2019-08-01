@@ -33,7 +33,6 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
-	"strings"
 	"time"
 
 	"k8s.io/client-go/kubernetes"
@@ -84,13 +83,16 @@ type rpcWatcher struct {
 	tryLaterKeys map[string]bool
 
 	// map rpcservice name -> interface
-	rpcInterfacesMap map[string][]string
+	rpcInterfacesMap map[string]map[string]bool
 
 	// map k8s service to rpcservice name
 	serivice2RpcServiceMap map[string]string
 
 	// map k8s pod to rpcservice name
 	pod2RpcServiceMap map[string]string
+
+	// map domain to ip
+	domain2IP map[string]string
 }
 
 func newRPCWatcher(lister listers.RpcServiceLister, client kubernetes.Interface, config *Config, stopCh <-chan struct{}) *rpcWatcher {
@@ -103,9 +105,10 @@ func newRPCWatcher(lister listers.RpcServiceLister, client kubernetes.Interface,
 		rpcServiceLister:       lister,
 		kubeclientset:          client,
 		tryLaterKeys:           make(map[string]bool, 0),
-		rpcInterfacesMap:       make(map[string][]string, 0),
+		rpcInterfacesMap:       make(map[string]map[string]bool, 0),
 		serivice2RpcServiceMap: make(map[string]string, 0),
 		pod2RpcServiceMap:      make(map[string]string, 0),
+		domain2IP:              make(map[string]string, 0),
 	}
 
 	serviceWatcher, err := watchers.StartServiceWatcher(client, 2*time.Second, stopCh)
@@ -145,7 +148,7 @@ func (rw *rpcWatcher) Delete(rs *v1.RpcService) {
 }
 
 func (rw *rpcWatcher) main(stopCh <-chan struct{}) {
-	t := time.NewTimer(10 * time.Second)
+	t := time.NewTicker(10 * time.Second)
 
 	for {
 		select {
@@ -187,9 +190,19 @@ func (rw *rpcWatcher) deleteRPCServiceHandler(rs *v1.RpcService) {
 		return
 	}
 
-	for _, domain := range domains {
+	for domain, _ := range domains {
 		log.Infof("delete rpcservice %s, domain: %s", key, domain)
-		rw.dnsInterface.Delete(domain, rs.Spec.DomainSuffix)
+		ip, exist := rw.domain2IP[domain]
+		if !exist {
+			log.Errorf("cannot find domain %s ip", domain)
+			continue
+		}
+		err := rw.dnsInterface.Delete(domain, ip, rs.Spec.DomainSuffix)
+		if err != nil {
+			log.Errorf("delete domain %s err: %v", domain, err)
+		} else {
+			delete(rw.domain2IP, domain)
+		}
 	}
 	rw.rpcInterfacesMap[key] = nil
 }
@@ -217,6 +230,10 @@ func (rw *rpcWatcher) timerHandler() {
 
 func (rw *rpcWatcher) queryRPCInterface(key string, rs *v1.RpcService) {
 	selector := rs.Spec.Selector
+	if len(selector) == 0 {
+		log.Errorf("rpcservice %s/%s has empty selector", rs.Namespace, rs.Name)
+		return
+	}
 
 	// find service by selector
 	services, err := rw.serviceWatcher.ListBySelector(selector)
@@ -252,6 +269,7 @@ func (rw *rpcWatcher) queryRPCInterface(key string, rs *v1.RpcService) {
 			continue
 		}
 
+		/*
 		version, exist := pod.Labels[rpcVersion]
 		if !exist {
 			log.Errorf("service %s/%s pod %s/%s has no %s label:%v",
@@ -266,6 +284,7 @@ func (rw *rpcWatcher) queryRPCInterface(key string, rs *v1.RpcService) {
 		}
 
 		log.Infof("pod %s, interface %s, version %s", pod.Name, i, version)
+		*/
 
 		url := fmt.Sprintf("http://%s:10006/rpc/interfaces", pod.Status.PodIP)
 		resp, err := http.Get(url)
@@ -289,11 +308,13 @@ func (rw *rpcWatcher) queryRPCInterface(key string, rs *v1.RpcService) {
 		}
 
 		if rpcResponse.Success != true {
-			log.Errorf("resp not success")
-			continue
+			log.Errorf("key %s resp not success: %v, try again later...", key, rpcResponse)
+			rw.tryLaterKeys[key] = true
+			return
 		}
 
 		for _, inter := range rpcResponse.Data.Providers {
+			/*
 			if !strings.ContainsAny(inter.Interface, i) {
 				log.Infof("interface %s, i %s", inter.Interface, i)
 				continue
@@ -302,19 +323,25 @@ func (rw *rpcWatcher) queryRPCInterface(key string, rs *v1.RpcService) {
 				log.Infof("version %s, i %s", inter.Version, version)
 				continue
 			}
+			*/
 			interfaceStr := inter.Interface
 
 			// add <interface, clusterIP> to coreDNS
 			log.Infof("update dns <%s,%s>", interfaceStr, service.Spec.ClusterIP)
 			err = rw.dnsInterface.Update(interfaceStr, service.Spec.ClusterIP, rs.Spec.DomainSuffix)
+			rw.domain2IP[interfaceStr] = service.Spec.ClusterIP
 			if err != nil {
 				log.Errorf("update dns error: %v", err)
+				continue
 			}
 			if rw.rpcInterfacesMap[key] == nil {
-				rw.rpcInterfacesMap[key] = make([]string, 0)
+				rw.rpcInterfacesMap[key] = make(map[string]bool, 0)
 			}
-			rw.rpcInterfacesMap[key] = append(rw.rpcInterfacesMap[key], interfaceStr)
+			rw.rpcInterfacesMap[key][interfaceStr] = true
 		}
+
+		// query only one pod success to quit loop
+		break
 	}
 }
 

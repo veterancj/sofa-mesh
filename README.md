@@ -1,4 +1,4 @@
-# SOFAMesh
+# Istio
 
 [![CircleCI](https://circleci.com/gh/alipay/sofa-mesh.svg?style=shield)](https://circleci.com/gh/alipay/sofa-mesh)
 [![Go Report Card](https://goreportcard.com/badge/github.com/alipay/sofa-mesh)](https://goreportcard.com/report/github.com/alipay/sofa-mesh)
@@ -82,9 +82,6 @@ management services, and monitoring services.
 
 - [istio/api](https://github.com/istio/api). This repository defines
 component-level APIs and common configuration formats for the Istio platform.
-
-- [istio/mixerclient](https://github.com/istio/mixerclient). Client libraries
-(currently supports C++) for Mixer's API.
 
 - [istio/proxy](https://github.com/istio/proxy). The Istio proxy contains
 extensions to the [Envoy proxy](https://github.com/envoyproxy/envoy) (in the form of

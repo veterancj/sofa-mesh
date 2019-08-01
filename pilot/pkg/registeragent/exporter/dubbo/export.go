@@ -15,12 +15,12 @@
 package dubbo
 
 import (
-	"github.com/gin-gonic/gin"
-	"fmt"
-	"net/http"
-	"io/ioutil"
-	"istio.io/fortio/log"
 	"encoding/json"
+	"fmt"
+	"fortio.org/fortio/log"
+	"github.com/gin-gonic/gin"
+	"io/ioutil"
+	"net/http"
 )
 
 type SimpleRpcInfoExporter struct {
@@ -54,12 +54,12 @@ func (r *SimpleRpcInfoExporter) GetRpcServiceInfo(c *gin.Context) {
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		log.Errf("new local rpc request failed: ", err)
+		log.Errf("new local rpc request failed: %v", err)
 		return
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Errf("get local rpc info failed: ", err)
+		log.Errf("get local rpc info failed: %v", err)
 		return
 	}
 	defer resp.Body.Close()
@@ -70,7 +70,7 @@ func (r *SimpleRpcInfoExporter) GetRpcServiceInfo(c *gin.Context) {
 		info := Info{}
 		err := json.Unmarshal(body, &info)
 		if err != nil {
-			log.Errf("Unmarshal rpc info failed: ", err)
+			log.Errf("Unmarshal rpc info failed: %v", err)
 			return
 		}
 		interfacesDTO := InterfacesDTO{}
