@@ -18,6 +18,7 @@
 package zookeeper
 
 import (
+	"fmt"
 	"github.com/pkg/errors"
 	"github.com/samuel/go-zookeeper/zk"
 	"istio.io/istio/pilot/pkg/model"
@@ -197,12 +198,16 @@ func (c *Controller) GetProxyServiceInstances(proxy *model.Proxy) ([]*model.Serv
 	return result, nil
 }
 
+func (c *Controller) GetProxyWorkloadLabels(proxy *model.Proxy) (model.LabelsCollection, error) {
+	return nil,fmt.Errorf("not supported!")
+}
+
 func (c *Controller) ManagementPorts(addr string) model.PortList {
 	return nil
 }
 
 // GetIstioServiceAccounts implements model.ServiceAccounts operation TODO
-func (c *Controller) GetIstioServiceAccounts(hostname model.Hostname, ports []string) []string {
+func (c *Controller) GetIstioServiceAccounts(hostname model.Hostname, ports []int) []string {
 	return []string{
 		"spiffe://cluster.local/ns/default/sa/default",
 	}

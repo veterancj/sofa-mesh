@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"istio.io/istio/pilot/pkg/serviceregistry/jsf"
+	"istio.io/istio/pilot/pkg/serviceregistry/zookeeper"
 	"net"
 	"net/http"
 	"net/url"
@@ -934,22 +935,6 @@ func (s *Server) initServiceControllers(args *PilotArgs) error {
 			if err := s.createK8sServiceControllers(serviceControllers, args); err != nil {
 				return err
 			}
-		case serviceregistry.ConsulRegistry:
-			if err := s.initConsulRegistry(serviceControllers, args); err != nil {
-				return err
-			}
-			serviceControllers.AddRegistry(aggregate.Registry{
-				Name: serviceregistry.ServiceRegistry(r),
-				Controller: &cloudfoundry.Controller{
-					Ticker: cloudfoundry.NewTicker(cfConfig.Copilot.PollInterval),
-					Client: client,
-				},
-				ServiceDiscovery: &cloudfoundry.ServiceDiscovery{
-					Client:      client,
-					ServicePort: cfConfig.ServicePort,
-				},
-				ServiceAccounts: cloudfoundry.NewServiceAccounts(),
-			})
 		case serviceregistry.ZookeeperRegistry:
 			log.Infof("Zookeeper url: %v", args.Service.Zookeeper.ServerURL)
 			zkctl, zkerr := zookeeper.NewController(
@@ -962,7 +947,6 @@ func (s *Server) initServiceControllers(args *PilotArgs) error {
 					Name:             serviceregistry.ServiceRegistry(r),
 					ClusterID:        string(serviceregistry.ZookeeperRegistry),
 					ServiceDiscovery: zkctl,
-					ServiceAccounts:  zkctl,
 					Controller:       zkctl,
 				})
 		case serviceregistry.JsfRegistry:
@@ -977,7 +961,6 @@ func (s *Server) initServiceControllers(args *PilotArgs) error {
 					Name:             serviceregistry.ServiceRegistry(r),
 					ClusterID:        string(serviceregistry.JsfRegistry),
 					ServiceDiscovery: jsfctl,
-					ServiceAccounts:  jsfctl,
 					Controller:       jsfctl,
 				})
 

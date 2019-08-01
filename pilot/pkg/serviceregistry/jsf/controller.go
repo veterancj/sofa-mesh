@@ -1,6 +1,7 @@
 package jsf
 
 import (
+	"fmt"
 	"github.com/pkg/errors"
 	"istio.io/istio/pilot/pkg/model"
 	"strings"
@@ -112,9 +113,12 @@ func (c *Controller) GetService(hostname model.Hostname) (*model.Service, error)
 func (sd *Controller) GetServiceAttributes(hostname model.Hostname) (*model.ServiceAttributes, error) {
 	svc, err := sd.GetService(hostname)
 	if svc != nil {
+		exportTo := make(map[model.Visibility]bool)
+		exportTo[model.VisibilityPublic] = true
 		return &model.ServiceAttributes{
 			Name:      string(hostname),
-			Namespace: model.IstioDefaultConfigNamespace}, nil
+			Namespace: model.IstioDefaultConfigNamespace,
+			ExportTo: exportTo}, nil
 	}
 	return nil, err
 }
@@ -173,12 +177,16 @@ func (c *Controller) GetProxyServiceInstances(proxy *model.Proxy) ([]*model.Serv
 	return result, nil
 }
 
+func (c *Controller) GetProxyWorkloadLabels(proxy *model.Proxy) (model.LabelsCollection, error) {
+	return nil,fmt.Errorf("not supported!")
+}
+
 func (c *Controller) ManagementPorts(addr string) model.PortList {
 	return nil
 }
 
 // GetIstioServiceAccounts implements model.ServiceAccounts operation TODO
-func (c *Controller) GetIstioServiceAccounts(hostname model.Hostname, ports []string) []string {
+func (c *Controller) GetIstioServiceAccounts(hostname model.Hostname, ports []int) []string {
 	return []string{
 		"spiffe://cluster.local/ns/default/sa/default",
 	}
@@ -199,6 +207,11 @@ func toService(s *Service) *model.Service {
 		Hostname:   model.Hostname(s.Name()),
 		Resolution: model.ClientSideLB,
 		Ports:      ports,
+		Attributes: model.ServiceAttributes{
+			Name: s.Name(),
+			Namespace: model.IstioDefaultConfigNamespace,
+			ExportTo: map[model.Visibility]bool{model.VisibilityPublic:true},
+		},
 	}
 	return service
 }
