@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	"istio.io/istio/pilot/pkg/model"
+	"istio.io/istio/pilot/pkg/serviceregistry/kube"
+	"k8s.io/client-go/kubernetes"
 	"strings"
 	"istio.io/istio/pkg/log"
 )
@@ -19,9 +21,9 @@ type Controller struct {
 }
 
 // NewController create a Controller instance
-func NewController(serviceNameStr string, refreshPeriod int) (*Controller, error) {
+func NewController(serviceNameStr string, refreshPeriod int, kubeClient kubernetes.Interface, options kube.ControllerOptions) (*Controller, error) {
 	serviceNames := strings.Split(serviceNameStr, ",")
-	client := NewClient(serviceNames, refreshPeriod)
+	client := NewClient(serviceNames, refreshPeriod, kubeClient, options)
 	controller := &Controller{
 		client: client,
 	}
@@ -43,7 +45,7 @@ func (c *Controller) AppendInstanceHandler(f func(*model.ServiceInstance, model.
 
 // Run until a signal is received
 func (c *Controller) Run(stop <-chan struct{}) {
-	if err := c.client.Start(); err != nil {
+	if err := c.client.Start(stop); err != nil {
 		log.Warnf("Can not connect to jsf registry %s", c.client)
 		return
 	}

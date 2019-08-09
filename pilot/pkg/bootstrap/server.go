@@ -952,7 +952,8 @@ func (s *Server) initServiceControllers(args *PilotArgs) error {
 		case serviceregistry.JsfRegistry:
 			log.Infof("JsfRegistry config: serviceNameStr_%v-refreshPeriod_%d", args.Service.JsfRegistry.serviceNameStr, args.Service.JsfRegistry.refreshPeriod)
 			jsfctl, jsferr := jsf.NewController(
-				args.Service.JsfRegistry.serviceNameStr, args.Service.JsfRegistry.refreshPeriod)
+				args.Service.JsfRegistry.serviceNameStr, args.Service.JsfRegistry.refreshPeriod,
+				s.kubeClient, args.Config.ControllerOptions)
 			if jsferr != nil {
 				return fmt.Errorf("failed to create jsf registry controller: %v", jsferr)
 			}

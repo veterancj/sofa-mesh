@@ -3,15 +3,24 @@ package jsf
 import (
 	"encoding/json"
 	"io/ioutil"
+	"istio.io/istio/pilot/pkg/serviceregistry/kube"
 	"istio.io/istio/pkg/log"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	informersv1 "k8s.io/client-go/informers/core/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
 	"net/http"
 	"strings"
 	"time"
+	corev1 "k8s.io/api/core/v1"
 )
 
 const (
 	jsfInterfaceOpenapiUrl  = "http://g.jsf.jd.local/com.jd.jsf.openapi.service.JSFOpenAPI/jsf-open-api/getServerStatusListByInterface/1012889/jsf"
 	contentType = "application/x-www-form-urlencoded"
+	bigmeshJsfServiceWhiteList = "bigmesh.jsf.service.white.list"
+	jsf_config = "app=bigmesh.jsf.config"
+	serviceWhiteList = "whiteList"
 )
 
 type Client struct {
@@ -20,25 +29,67 @@ type Client struct {
 	services map[string]*Service
 	out      chan ServiceEvent
 	ticker *time.Ticker
+	//用于获取jsf服务发现的白名单
+	informer cache.SharedIndexInformer
+	options kube.ControllerOptions
 }
 
 // NewClient create a new jsf registry client
-func NewClient(serviceNameList []string, refreshPeriod int) *Client {
+func NewClient(serviceNameList []string, refreshPeriod int, kubeClient kubernetes.Interface, options kube.ControllerOptions) *Client {
 	if refreshPeriod <= 60 {
 		refreshPeriod = 5 * 60
 	}
+	informer := newJsfServiceConfigSharedIndexInformer(kubeClient, options)
 	client := &Client{
 		serviceNameList: serviceNameList,
 		refreshPeriod: refreshPeriod,
 		services: make(map[string]*Service),
 		out:      make(chan ServiceEvent),
 		ticker:	time.NewTicker( time.Second * time.Duration(refreshPeriod)),
+		informer: informer,
+		options: options,
 	}
 	return client
 }
 
+func newJsfServiceConfigSharedIndexInformer(client kubernetes.Interface, options kube.ControllerOptions) (informer cache.SharedIndexInformer) {
+	informer = informersv1.NewFilteredConfigMapInformer(client,
+		options.WatchedNamespace,
+		options.ResyncPeriod,
+		cache.Indexers{},
+		func( opt *v1.ListOptions){
+			opt.LabelSelector = jsf_config;
+		});
+	return
+}
+
+func (c *Client) updateServiceNameList()  {
+	if c.informer.HasSynced() {
+		obj, exists, err := c.informer.GetStore().GetByKey(kube.KeyFunc(bigmeshJsfServiceWhiteList, c.options.WatchedNamespace))
+		if err != nil {
+			log.Warnf("获取jsf service white list is error:%s",err)
+			return
+		}
+		if exists {
+			obj, ok := obj.(*corev1.ConfigMap);
+			if ok {
+				whiteListStr := obj.Data[serviceWhiteList]
+				if len(whiteListStr) > 0 {
+					whiteListArray := strings.Split(whiteListStr, ",")
+					if len(whiteListArray) > 0 {
+						c.serviceNameList = append(c.serviceNameList, whiteListArray...)
+					}
+				}
+			}
+		}
+	}
+}
+
 //刷新接口信息,服务以接口名称为准
 func (c *Client) refreshServices() {
+	//首先更新服务列表白名单
+	c.updateServiceNameList()
+	//根据服务列表白名单更新服务实例
 	if len(c.serviceNameList) > 0 {
 		for _, serviceName := range c.serviceNameList {
 			if len(serviceName) > 0 {
@@ -220,7 +271,11 @@ func (c *Client) InstancesByHost(hosts []string) []*Instance {
 	return instances
 }
 
-func (c *Client) Start() error {
+func (c *Client) Start(stop <-chan struct{}) error {
+	if c.informer != nil {
+		c.informer.Run(stop)
+	}
+	c.informer.Run(stop)
 	if c.ticker != nil {
 		<- c.ticker.C
 		go c.refreshServices()
