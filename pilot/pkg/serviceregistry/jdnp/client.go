@@ -1,6 +1,9 @@
-package jsf
+package jdnp
 
 import (
+	"bytes"
+	"crypto/md5"
+	"encoding/hex"
 	"encoding/json"
 	"io/ioutil"
 	"istio.io/istio/pilot/pkg/serviceregistry/kube"
@@ -10,21 +13,24 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 	corev1 "k8s.io/api/core/v1"
 )
 
 const (
-	jsfInterfaceOpenapiUrl  = "http://g.jsf.jd.local/com.jd.jsf.openapi.service.JSFOpenAPI/jsf-open-api/getServerStatusListByInterface/1012889/jsf"
-	contentType = "application/x-www-form-urlencoded"
-	bigmeshJsfServiceWhiteList = "bigmesh.jsf.service.white.list"
-	jsf_config = "app=bigmesh.jsf.config"
-	serviceWhiteList = "whiteList"
+	dnsToVipLbInfosUrl  = "http://api-np.jd.local/V1/Dns/records?domain=pfinder-jmtp.jd.local"
+	appCode = "jsf-web-console"
+	erp = "chenjiao7"
+	secretKey = "57f8bd5cb103ec39228a6630b3d0e617"
+	bigmeshJdnpServiceWhiteList = "bigmesh.jdnp.domain.white.list"
+	jdnp_config = "app=bigmesh.jdnp.config"
+	domainWhiteList = "whiteList"
 )
 
 type Client struct {
-	serviceNameList []string
+	domainNameList []string
 	refreshPeriod int
 	services map[string]*Service
 	out      chan ServiceEvent
@@ -35,13 +41,13 @@ type Client struct {
 }
 
 // NewClient create a new jsf registry client
-func NewClient(serviceNameList []string, refreshPeriod int, kubeClient kubernetes.Interface, options kube.ControllerOptions) *Client {
+func NewClient(domainNameList []string, refreshPeriod int, kubeClient kubernetes.Interface, options kube.ControllerOptions) *Client {
 	if refreshPeriod <= 60 {
 		refreshPeriod = 5 * 60
 	}
 	informer := newJsfServiceConfigSharedIndexInformer(kubeClient, options)
 	client := &Client{
-		serviceNameList: serviceNameList,
+		domainNameList: domainNameList,
 		refreshPeriod: refreshPeriod,
 		services: make(map[string]*Service),
 		out:      make(chan ServiceEvent),
@@ -58,14 +64,14 @@ func newJsfServiceConfigSharedIndexInformer(client kubernetes.Interface, options
 		options.ResyncPeriod,
 		cache.Indexers{},
 		func( opt *v1.ListOptions){
-			opt.LabelSelector = jsf_config;
+			opt.LabelSelector = jdnp_config;
 		});
 	return
 }
 
 func (c *Client) updateServiceNameList()  {
 	if c.informer.HasSynced() {
-		obj, exists, err := c.informer.GetStore().GetByKey(kube.KeyFunc(bigmeshJsfServiceWhiteList, c.options.WatchedNamespace))
+		obj, exists, err := c.informer.GetStore().GetByKey(kube.KeyFunc(bigmeshJdnpServiceWhiteList, c.options.WatchedNamespace))
 		if err != nil {
 			log.Warnf("获取jsf service white list is error:%s",err)
 			return
@@ -73,11 +79,11 @@ func (c *Client) updateServiceNameList()  {
 		if exists {
 			obj, ok := obj.(*corev1.ConfigMap);
 			if ok {
-				whiteListStr := obj.Data[serviceWhiteList]
+				whiteListStr := obj.Data[domainWhiteList]
 				if len(whiteListStr) > 0 {
 					whiteListArray := strings.Split(whiteListStr, ",")
 					if len(whiteListArray) > 0 {
-						c.serviceNameList = append(c.serviceNameList, whiteListArray...)
+						c.domainNameList = append(c.domainNameList, whiteListArray...)
 					}
 				}
 			}
@@ -90,18 +96,18 @@ func (c *Client) refreshServices() {
 	//首先更新服务列表白名单
 	c.updateServiceNameList()
 	//根据服务列表白名单更新服务实例
-	if len(c.serviceNameList) > 0 {
-		for _, serviceName := range c.serviceNameList {
-			if len(serviceName) > 0 {
+	if len(c.domainNameList) > 0 {
+		for _, domainName := range c.domainNameList {
+			if len(domainName) > 0 {
 				go func() {
-					serviceJsonObj := getJsfInterfaceInfoByHttp(serviceName)
-					if serviceJsonObj != nil {
-						if(!serviceJsonObj.Success && serviceJsonObj.Code == 404){
-							 c.deleteService(serviceName)
+					jdNpDNSJsonObj := getDnsToVipInfoByHttp(domainName)
+					if jdNpDNSJsonObj != nil && jdNpDNSJsonObj.ResStatus == 200 {
+						if(len(jdNpDNSJsonObj.Data)<=0 ){
+							 c.deleteService(domainName)
 						} else {
-							serviceMap := convertToService(serviceJsonObj)
+							serviceMap := convertToService(jdNpDNSJsonObj)
 							if len(serviceMap) <= 0 {
-								c.deleteService(serviceName)
+								c.deleteService(domainName)
 							} else {
 								for hostname, service := range serviceMap { //hostname:interfacename
 									c.services[hostname] = service
@@ -191,32 +197,69 @@ func subtract( a []*Instance, b []*Instance ) []*Instance {
 	return r
 }
 
-//通过http接口定时轮询jsf接口信息
-func getJsfInterfaceInfoByHttp( interfaceName string ) *ServiceJsonObj {
-	if(len(interfaceName) <= 0) {
+//通过http接口定时轮询域名对应的vip服务实例
+func getDnsToVipInfoByHttp( domain string ) *JdNpDNSJsonObj {
+	if(len(domain) <= 0) {
 		return nil
 	}
-	requestContent := string("{\"appId\":\"1012889\",\"erp\":\"chenjiao7\",\"token\":\"1012889\",\"interfaceName\":\""+interfaceName+"\"}");
-	resp, err := http.Post(jsfInterfaceOpenapiUrl, contentType, strings.NewReader(requestContent))
+
+	now := time.Now()
+	curSec := now.Unix()
+	timestamp := strconv.FormatInt(curSec,10)
+	log.Infof("getDnsToVipInfoByHttp timestamp: %s", timestamp)
+	timeStr := now.Format("150420060102")
+	log.Infof("getDnsToVipInfoByHttp \ntimeStr: %s", timeStr)
+	signStr := sign(erp, secretKey, timeStr)
+	log.Infof("getDnsToVipInfoByHttp \nsignStr: %s", signStr)
+	req, err := http.NewRequest("GET", dnsToVipLbInfosUrl, nil)
 	if err != nil {
-		log.Errora("http request is error.",err)
+		log.Errora("getDnsToVipInfoByHttp http GET method is error.",err)
+		return nil
+	}
+
+	req.Header.Set("appCode", appCode)
+	req.Header.Set( "erp", erp)
+	req.Header.Set("timestamp", timestamp)
+	req.Header.Set("sign", signStr)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Errora("getDnsToVipInfoByHttp http GET method client do is error.",err)
 		return nil
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	respByte, err:= ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.Errora("ReadAll resp body is error.",err)
+		log.Errora("getDnsToVipInfoByHttp respByte is error.",err)
 		return nil
 	}
 
-	var serviceJsonObj ServiceJsonObj
-	err = json.Unmarshal(body, &serviceJsonObj)
-	if err != nil {
-		log.Errora("json Unmarshal is error.",err)
+	var jdNpDNSJsonObj JdNpDNSJsonObj
+	if err = json.Unmarshal(respByte, &jdNpDNSJsonObj); err != nil {
+		log.Errora("getDnsToVipInfoByHttp json Unmarshal is error.",err)
 		return nil
 	}
-	return &serviceJsonObj
+
+	return &jdNpDNSJsonObj
+}
+
+func sign(erp,token,timeStr string) string {
+	var buffer bytes.Buffer
+	buffer.WriteString(erp)
+	buffer.WriteString("#")
+	buffer.WriteString(token)
+	buffer.WriteString("NP")
+	buffer.WriteString(timeStr)
+	md5 := md5.New()
+	_, err := md5.Write(buffer.Bytes())
+	if err != nil {
+		log.Errorf("getDnsToVipInfoByHttp sign md5 write is error.%s", err)
+		return "";
+	}
+	signStr := hex.EncodeToString(md5.Sum(nil))
+	return signStr
 }
 
 
@@ -289,7 +332,6 @@ func (c *Client) Start(stop <-chan struct{}) error {
 		}()
 	}
 	return nil
-
 }
 
 // Stop registry client and close all channels

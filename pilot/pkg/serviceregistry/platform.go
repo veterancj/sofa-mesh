@@ -29,7 +29,9 @@ const (
 	// MCPRegistry is a service registry backed by MCP ServiceEntries
 	MCPRegistry ServiceRegistry = "MCP"
 	// ZookeeperRegistry environment flag
-	ZookeeperRegistry = "Zookeeper"
+	ZookeeperRegistry ServiceRegistry = "Zookeeper"
 	// JsfRegistry environment flag
-	JsfRegistry = "Jsf"
+	JsfRegistry ServiceRegistry = "Jsf"
+	// jd np open api方式服务发现
+	JdNpRegistry ServiceRegistry = "JdNp"
 )

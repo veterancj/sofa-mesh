@@ -20,6 +20,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io/ioutil"
+	"istio.io/istio/pilot/pkg/serviceregistry/jdnp"
 	"istio.io/istio/pilot/pkg/serviceregistry/jsf"
 	"istio.io/istio/pilot/pkg/serviceregistry/zookeeper"
 	"net"
@@ -167,6 +168,7 @@ type ZookeeperArgs struct {
 
 type JsfRegistryArgs struct {
 	serviceNameStr string
+	domainNameStr string
 	refreshPeriod  int
 }
 
@@ -964,7 +966,21 @@ func (s *Server) initServiceControllers(args *PilotArgs) error {
 					ServiceDiscovery: jsfctl,
 					Controller:       jsfctl,
 				})
-
+		case serviceregistry.JdNpRegistry:
+			log.Infof("JdNpRegistry config: domainNameStr_%v-refreshPeriod_%d", args.Service.JsfRegistry.domainNameStr, args.Service.JsfRegistry.refreshPeriod)
+			jdnpCtl, jdnpErr := jdnp.NewController(
+				args.Service.JsfRegistry.domainNameStr, args.Service.JsfRegistry.refreshPeriod,
+				s.kubeClient, args.Config.ControllerOptions)
+			if jdnpErr != nil {
+				return fmt.Errorf("failed to create jsf np registry controller: %v", jdnpErr)
+			}
+			serviceControllers.AddRegistry(
+				aggregate.Registry{
+					Name:             serviceregistry.ServiceRegistry(r),
+					ClusterID:        string(serviceregistry.JdNpRegistry),
+					ServiceDiscovery: jdnpCtl,
+					Controller:       jdnpCtl,
+				})
 		case serviceregistry.MCPRegistry:
 			log.Infof("no-op: get service info from MCP ServiceEntries.")
 		default:
