@@ -13,6 +13,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -25,35 +26,38 @@ const (
 	erp = "chenjiao7"
 	secretKey = "57f8bd5cb103ec39228a6630b3d0e617"
 	bigmeshJdnpServiceWhiteList = "bigmesh.jdnp.domain.white.list"
-	jdnp_config = "app=bigmesh.jdnp.config"
+	jdnp_config = "bigmesh/app=bigmesh.jdnp.config"
 	domainWhiteList = "whiteList"
+	bigmesh_ns = "bigmesh-system"
 )
 
 type Client struct {
-	domainNameList []string
+	urlStrList    []string
+	domainMapUrl  map[string]*url.URL
 	refreshPeriod int
-	services map[string]*Service
-	out      chan ServiceEvent
-	ticker *time.Ticker
+	services      map[string]*Service
+	out           chan ServiceEvent
+	timer        *time.Timer
 	//用于获取jsf服务发现的白名单
 	informer cache.SharedIndexInformer
 	options kube.ControllerOptions
 }
 
 // NewClient create a new jsf registry client
-func NewClient(domainNameList []string, refreshPeriod int, kubeClient kubernetes.Interface, options kube.ControllerOptions) *Client {
-	if refreshPeriod <= 60 {
-		refreshPeriod = 5 * 60
+func NewClient(urlStringList []string, refreshPeriod int, kubeClient kubernetes.Interface, options kube.ControllerOptions) *Client {
+	if refreshPeriod < 1 {
+		refreshPeriod = 30
 	}
 	informer := newJsfServiceConfigSharedIndexInformer(kubeClient, options)
 	client := &Client{
-		domainNameList: domainNameList,
+		urlStrList:    urlStringList,
+		domainMapUrl:  convertToDomainURLSlice(urlStringList),
 		refreshPeriod: refreshPeriod,
-		services: make(map[string]*Service),
-		out:      make(chan ServiceEvent),
-		ticker:	time.NewTicker( time.Second * time.Duration(refreshPeriod)),
-		informer: informer,
-		options: options,
+		services:      make(map[string]*Service),
+		out:           make(chan ServiceEvent),
+		timer:         time.NewTimer( time.Second * time.Duration(refreshPeriod)),
+		informer:      informer,
+		options:       options,
 	}
 	return client
 }
@@ -70,8 +74,8 @@ func newJsfServiceConfigSharedIndexInformer(client kubernetes.Interface, options
 }
 
 func (c *Client) updateServiceNameList()  {
-	if c.informer.HasSynced() {
-		obj, exists, err := c.informer.GetStore().GetByKey(kube.KeyFunc(bigmeshJdnpServiceWhiteList, c.options.WatchedNamespace))
+	if c.informer != nil && c.informer.HasSynced() {
+		obj, exists, err := c.informer.GetStore().GetByKey(kube.KeyFunc(bigmeshJdnpServiceWhiteList, bigmesh_ns))
 		if err != nil {
 			log.Warnf("获取jsf service white list is error:%s",err)
 			return
@@ -83,7 +87,13 @@ func (c *Client) updateServiceNameList()  {
 				if len(whiteListStr) > 0 {
 					whiteListArray := strings.Split(whiteListStr, ",")
 					if len(whiteListArray) > 0 {
-						c.domainNameList = append(c.domainNameList, whiteListArray...)
+						c.urlStrList = make([]string,0,len(whiteListArray));
+						for _, domainUrl := range whiteListArray {
+							if len(domainUrl) > 0 {
+								c.urlStrList = append(c.urlStrList, domainUrl)
+							}
+						}
+						c.domainMapUrl = convertToDomainURLSlice(c.urlStrList)
 					}
 				}
 			}
@@ -96,28 +106,27 @@ func (c *Client) refreshServices() {
 	//首先更新服务列表白名单
 	c.updateServiceNameList()
 	//根据服务列表白名单更新服务实例
-	if len(c.domainNameList) > 0 {
-		for _, domainName := range c.domainNameList {
+	if len(c.urlStrList) > 0 {
+		for domainName, curUrl := range c.domainMapUrl {
 			if len(domainName) > 0 {
-				go func() {
-					jdNpDNSJsonObj := getDnsToVipInfoByHttp(domainName)
-					if jdNpDNSJsonObj != nil && jdNpDNSJsonObj.ResStatus == 200 {
-						if(len(jdNpDNSJsonObj.Data)<=0 ){
-							 c.deleteService(domainName)
+				jdNpDNSJsonObj := getDnsToVipInfoByHttp(domainName)
+				if jdNpDNSJsonObj != nil && jdNpDNSJsonObj.ResStatus == 200 {
+					if(len(jdNpDNSJsonObj.Data)<=0 ){
+						c.deleteService(domainName)
+					} else {
+						serviceMap := convertToService(jdNpDNSJsonObj, curUrl)
+						if len(serviceMap) <= 0 {
+							c.deleteService(domainName)
 						} else {
-							serviceMap := convertToService(jdNpDNSJsonObj)
-							if len(serviceMap) <= 0 {
-								c.deleteService(domainName)
-							} else {
-								for hostname, service := range serviceMap { //hostname:interfacename
-									c.services[hostname] = service
-									//触发服务及实例变更事件
-									c.triggerAlterationEvent(service)
-								}
+							for hostname, service := range serviceMap { //hostname:interfacename
+								oldService := c.services[hostname]
+								//先赋值，再触发事件
+								c.services[hostname] = service
+								c.triggerAlterationEvent(oldService, service)
 							}
 						}
 					}
-				}()
+				}
 			}
 		}
 	}
@@ -142,23 +151,22 @@ func (c *Client) deleteService(hostname string) {
 	}
 }
 
-func (c *Client) triggerAlterationEvent( s *Service ){
-	if(s == nil){
+func (c *Client) triggerAlterationEvent( old, new *Service ){
+	if(new == nil){
 		return ;
 	}
 	var curInstances []*Instance
-	_, exist := c.services[s.name]
-	if(!exist){
+	if(old == nil){
 		go c.notify(ServiceEvent{
 			EventType: ServiceAdd,
-			Service: s,
+			Service: new,
 		})
 		curInstances = make([]*Instance,0)
 	} else {
-		curInstances = c.services[s.name].instances
+		curInstances = old.instances
 	}
 	//删除相应的服务实例
-	deleteInsSet := subtract(curInstances, s.instances)
+	deleteInsSet := subtract(curInstances, new.instances)
 	for _, delIns := range deleteInsSet {
 		go c.notify(ServiceEvent{
 			EventType:ServiceInstanceDelete,
@@ -166,7 +174,7 @@ func (c *Client) triggerAlterationEvent( s *Service ){
 		})
 	}
 	//添加相应的服务实例
-	addInsSet := subtract(s.instances, curInstances)
+	addInsSet := subtract(new.instances, curInstances)
 	for _, addIns := range addInsSet {
 		go c.notify(ServiceEvent{
 			EventType:ServiceInstanceAdd,
@@ -316,14 +324,17 @@ func (c *Client) InstancesByHost(hosts []string) []*Instance {
 
 func (c *Client) Start(stop <-chan struct{}) error {
 	if c.informer != nil {
-		c.informer.Run(stop)
+		go func() {
+			c.informer.Run(stop)
+		}()
 	}
-	if c.ticker != nil {
+	if c.timer != nil {
 		go func() {
 			for {
 				select {
-				case <- c.ticker.C:
+				case <- c.timer.C:
 					c.refreshServices()
+					c.timer.Reset(time.Second * time.Duration(c.refreshPeriod))
 				case <- stop:
 					c.Stop()
 					return
@@ -337,7 +348,7 @@ func (c *Client) Start(stop <-chan struct{}) error {
 // Stop registry client and close all channels
 func (c *Client) Stop() {
 	close(c.out)
-	c.ticker.Stop()
+	c.timer.Stop()
 }
 
 func (c *Client) notify(event ServiceEvent) {

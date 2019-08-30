@@ -44,13 +44,13 @@ spec:
 {{- end }}
       containers:
         - name: discovery
-#          image: "docker.io/veterancj/pilot-debug:latest"
 {{- if contains "/" .Values.image }}
           image: "{{ .Values.image }}"
 {{- else }}
           image: "{{ .Values.global.hub }}/{{ .Values.image }}:{{ .Values.global.tag }}"
 {{- end }}
-          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          #imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          imagePullPolicy: Always
           args:
           - "discovery"
           - --monitoringAddr=:{{ .Values.global.monitoringPort }}
@@ -77,20 +77,26 @@ spec:
 {{- end }}
           - --keepaliveMaxServerConnectionAge
           - "{{ .Values.keepaliveMaxServerConnectionAge }}"
+          - --registries
+          - "Kubernetes,JdNp"
+          - --servicePullPeriod
+          - "10"
           ports:
           - containerPort: 8080
           - containerPort: 15010
 {{- if not .Values.sidecar }}
           - containerPort: 15011
 {{- end }}
-#          - containerPort: 40000
-          readinessProbe:
-            httpGet:
-              path: /ready
-              port: 8080
-            initialDelaySeconds: 5
-            periodSeconds: 30
-            timeoutSeconds: 5
+          - containerPort: 2345
+            name: debug
+            protocol: TCP
+#          readinessProbe:
+#            httpGet:
+#              path: /ready
+#              port: 8080
+#            initialDelaySeconds: 5
+#            periodSeconds: 30
+#            timeoutSeconds: 5
           env:
           - name: POD_NAME
             valueFrom:
@@ -128,6 +134,8 @@ spec:
           - name: istio-certs
             mountPath: /etc/certs
             readOnly: true
+          - name: timezone
+            mountPath: /etc/localtime
 {{- if .Values.global.sofamesh.sidecar.pilot }}
         - name: istio-proxy
 {{- if contains "/" .Values.global.proxy.image }}
@@ -196,6 +204,9 @@ spec:
         secret:
           secretName: istio.istio-pilot-service-account
           optional: true
+      - name: timezone
+        hostPath:
+         path: /usr/share/zoneinfo/Asia/Shanghai
       affinity:
       {{- include "nodeaffinity" . | indent 6 }}
       {{- include "podAntiAffinity" . | indent 6 }}

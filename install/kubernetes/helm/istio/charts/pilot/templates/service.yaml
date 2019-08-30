@@ -10,6 +10,7 @@ metadata:
     release: {{ .Release.Name }}
     istio: pilot
 spec:
+  type: NodePort
   ports:
   - port: 15010
     name: grpc-xds # direct
@@ -20,5 +21,8 @@ spec:
     name: http-legacy-discovery # direct
   - port: {{ .Values.global.monitoringPort }}
     name: http-monitoring
+  - port: 2345
+    name: tcp-debug
+    targetPort: 2345
   selector:
     istio: pilot

@@ -273,7 +273,9 @@ func (c *Client) InstancesByHost(hosts []string) []*Instance {
 
 func (c *Client) Start(stop <-chan struct{}) error {
 	if c.informer != nil {
-		c.informer.Run(stop)
+		go func() {
+			c.informer.Run(stop)
+		}()
 	}
 	if c.ticker != nil {
 		go func() {

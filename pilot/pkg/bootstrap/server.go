@@ -167,9 +167,9 @@ type ZookeeperArgs struct {
 }
 
 type JsfRegistryArgs struct {
-	serviceNameStr string
-	domainNameStr string
-	refreshPeriod  int
+	ServiceNameStr string
+	DomainUrlStr   string
+	RefreshPeriod  int
 }
 
 // ServiceArgs provides the composite configuration for all service registries in the system.
@@ -952,9 +952,9 @@ func (s *Server) initServiceControllers(args *PilotArgs) error {
 					Controller:       zkctl,
 				})
 		case serviceregistry.JsfRegistry:
-			log.Infof("JsfRegistry config: serviceNameStr_%v-refreshPeriod_%d", args.Service.JsfRegistry.serviceNameStr, args.Service.JsfRegistry.refreshPeriod)
+			log.Infof("JsfRegistry config: serviceNameStr_%v-refreshPeriod_%d", args.Service.JsfRegistry.ServiceNameStr, args.Service.JsfRegistry.RefreshPeriod)
 			jsfctl, jsferr := jsf.NewController(
-				args.Service.JsfRegistry.serviceNameStr, args.Service.JsfRegistry.refreshPeriod,
+				args.Service.JsfRegistry.ServiceNameStr, args.Service.JsfRegistry.RefreshPeriod,
 				s.kubeClient, args.Config.ControllerOptions)
 			if jsferr != nil {
 				return fmt.Errorf("failed to create jsf registry controller: %v", jsferr)
@@ -967,9 +967,9 @@ func (s *Server) initServiceControllers(args *PilotArgs) error {
 					Controller:       jsfctl,
 				})
 		case serviceregistry.JdNpRegistry:
-			log.Infof("JdNpRegistry config: domainNameStr_%v-refreshPeriod_%d", args.Service.JsfRegistry.domainNameStr, args.Service.JsfRegistry.refreshPeriod)
+			log.Infof("JdNpRegistry config: DomainUrlStr_%v-refreshPeriod_%d", args.Service.JsfRegistry.DomainUrlStr, args.Service.JsfRegistry.RefreshPeriod)
 			jdnpCtl, jdnpErr := jdnp.NewController(
-				args.Service.JsfRegistry.domainNameStr, args.Service.JsfRegistry.refreshPeriod,
+				args.Service.JsfRegistry.DomainUrlStr, args.Service.JsfRegistry.RefreshPeriod,
 				s.kubeClient, args.Config.ControllerOptions)
 			if jdnpErr != nil {
 				return fmt.Errorf("failed to create jsf np registry controller: %v", jdnpErr)

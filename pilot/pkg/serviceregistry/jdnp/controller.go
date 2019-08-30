@@ -46,7 +46,7 @@ func (c *Controller) AppendInstanceHandler(f func(*model.ServiceInstance, model.
 // Run until a signal is received
 func (c *Controller) Run(stop <-chan struct{}) {
 	if err := c.client.Start(stop); err != nil {
-		log.Warnf("Can not connect to jsf np registry %s", c.client)
+		log.Warnf("Can not connect to jsf np registry %v", c.client)
 		return
 	}
 
@@ -55,13 +55,13 @@ func (c *Controller) Run(stop <-chan struct{}) {
 		case event := <-c.client.Events():
 			switch event.EventType {
 			case ServiceAdd:
-				log.Infof("Service %s added", event.Service)
+				log.Infof("Service %v added", event.Service)
 				service := toService(event.Service)
 				for _, handler := range c.serviceHandlers {
 					go handler(service, model.EventAdd)
 				}
 			case ServiceDelete:
-				log.Infof("Service %s deleted", event.Service)
+				log.Infof("Service %v deleted", event.Service)
 				service := toService(event.Service)
 				for _, handler := range c.serviceHandlers {
 					go handler(service, model.EventDelete)
@@ -115,12 +115,11 @@ func (c *Controller) GetService(hostname model.Hostname) (*model.Service, error)
 func (sd *Controller) GetServiceAttributes(hostname model.Hostname) (*model.ServiceAttributes, error) {
 	svc, err := sd.GetService(hostname)
 	if svc != nil {
-		exportTo := make(map[model.Visibility]bool)
-		exportTo[model.VisibilityPublic] = true
 		return &model.ServiceAttributes{
-			Name:      string(hostname),
-			Namespace: model.IstioDefaultConfigNamespace,
-			ExportTo: exportTo}, nil
+			Name:      svc.Attributes.Name,
+			Namespace: svc.Attributes.Namespace,
+			ExportTo: svc.Attributes.ExportTo,
+			UID: svc.Attributes.UID}, nil
 	}
 	return nil, err
 }
@@ -132,7 +131,7 @@ func (c *Controller) WorkloadHealthCheckInfo(addr string) model.ProbeList {
 }
 
 // Instances list all instance for a specific host name
-func (c *Controller) Instances(hostname model.Hostname, ports []string,
+func (c *Controller) Instances(hostname model.Hostname, portProtocols []string,
 	labels model.LabelsCollection) ([]*model.ServiceInstance, error) {
 	instances := c.client.Instances(string(hostname))
 	result := make([]*model.ServiceInstance, 0)
@@ -141,7 +140,7 @@ func (c *Controller) Instances(hostname model.Hostname, ports []string,
 		if err != nil {
 			continue
 		}
-		for _, name := range ports {
+		for _, name := range portProtocols {
 			if name == instance.Port.Protocol && labels.HasSubsetOf(i.Labels) {
 				result = append(result, i)
 			}

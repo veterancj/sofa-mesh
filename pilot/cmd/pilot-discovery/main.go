@@ -54,7 +54,8 @@ var (
 	discoveryCmd = &cobra.Command{
 		Use:   "discovery",
 		Short: "Start Istio proxy discovery service.",
-		Args:  cobra.ExactArgs(0),
+		//Args:  cobra.ExactArgs(100),
+		Args: cobra.RangeArgs(0,100),
 		RunE: func(c *cobra.Command, args []string) error {
 			cmd.PrintFlags(c.Flags())
 			if err := log.Configure(loggingOptions); err != nil {
@@ -95,9 +96,9 @@ func hasKubeRegistry() bool {
 
 func init() {
 	discoveryCmd.PersistentFlags().StringSliceVar(&serverArgs.Service.Registries, "registries",
-		[]string{string(serviceregistry.KubernetesRegistry)},
-		fmt.Sprintf("Comma separated list of platform service registries to read from (choose one or more from {%s, %s, %s, %s})",
-			serviceregistry.KubernetesRegistry, serviceregistry.ConsulRegistry, serviceregistry.MCPRegistry, serviceregistry.MockRegistry))
+		[]string{string(serviceregistry.KubernetesRegistry),string(serviceregistry.JdNpRegistry)},
+		fmt.Sprintf("Comma separated list of platform service registries to read from (choose one or more from {%s, %s, %s, %s, %s, %s})",
+			serviceregistry.KubernetesRegistry, serviceregistry.ConsulRegistry, serviceregistry.MCPRegistry, serviceregistry.MockRegistry, serviceregistry.JsfRegistry, serviceregistry.JdNpRegistry))
 	discoveryCmd.PersistentFlags().StringVar(&serverArgs.Config.ClusterRegistriesNamespace, "clusterRegistriesNamespace", metav1.NamespaceAll,
 		"Namespace for ConfigMap which stores clusters configs")
 	discoveryCmd.PersistentFlags().StringVar(&serverArgs.Config.KubeConfig, "kubeconfig", "",
@@ -139,6 +140,14 @@ func init() {
 		"URL for the Consul server")
 	discoveryCmd.PersistentFlags().DurationVar(&serverArgs.Service.Consul.Interval, "consulserverInterval", 2*time.Second,
 		"Interval (in seconds) for polling the Consul service registry")
+
+	//jsf or jdnp service
+	discoveryCmd.PersistentFlags().StringVar(&serverArgs.Service.JsfRegistry.ServiceNameStr, "jsfInterfaceNames", "",
+		"comma separated list of jsf service name")
+	discoveryCmd.PersistentFlags().StringVar(&serverArgs.Service.JsfRegistry.DomainUrlStr, "jdnpUrls", "",
+		"comma separated list of jd np url")
+	discoveryCmd.PersistentFlags().IntVar(&serverArgs.Service.JsfRegistry.RefreshPeriod, "servicePullPeriod", 30,
+		"jsf or jdnp service Pull Period")
 
 	// using address, so it can be configured as localhost:.. (possibly UDS in future)
 	discoveryCmd.PersistentFlags().StringVar(&serverArgs.DiscoveryOptions.HTTPAddr, "httpAddr", ":8080",

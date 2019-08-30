@@ -71,7 +71,6 @@ func (s *Service) Instances() []*Instance {
 }
 
 type JdNpDNSJsonObj struct {
-	Domain string //np open openapi不会返回，需要人为的再设置一下
 	AppCode string `json:"appCode"`
 	ResStatus int `json:"resStatus"`
 	ResMsg string `json:"resMsg"`

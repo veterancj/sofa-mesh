@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bigmesh.jdnp.domain.white.list
+  labels:
+    bigmesh/app: bigmesh.jdnp.config
+data:
+  whiteList: |-
+   TCP://pfinder-jmtp.jd.local:20560
