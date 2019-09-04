@@ -6,4 +6,4 @@ metadata:
     bigmesh/app: bigmesh.jdnp.config
 data:
   whiteList: |-
-   TCP://pfinder-jmtp.jd.local:20560
+   TCP://pfinder-jmtp.jd.local:20560,TCP://mock-test.jsf.jd.com:20560

@@ -5,6 +5,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"istio.io/istio/pilot/pkg/serviceregistry/kube"
 	"istio.io/istio/pkg/log"
@@ -21,7 +22,7 @@ import (
 )
 
 const (
-	dnsToVipLbInfosUrl  = "http://api-np.jd.local/V1/Dns/records?domain=pfinder-jmtp.jd.local"
+	dnsToVipLbInfosUrl  = "http://api-np.jd.local/V1/Dns/records?domain=%s" //pfinder-jmtp.jd.local
 	appCode = "jsf-web-console"
 	erp = "chenjiao7"
 	secretKey = "57f8bd5cb103ec39228a6630b3d0e617"
@@ -101,12 +102,31 @@ func (c *Client) updateServiceNameList()  {
 	}
 }
 
+func (c *Client) deleteNotExistService( lastDomainMapUrl map[string]*url.URL ){
+	if len(lastDomainMapUrl) > 0 {
+		for lastKey, _ := range lastDomainMapUrl {
+			isExist := false
+			for curkey, _ := range c.domainMapUrl {
+				if lastKey == curkey {
+					isExist = true
+				}
+			}
+			if !isExist {
+				c.deleteService(lastKey)
+			}
+		}
+	}
+}
+
 //刷新接口信息,服务以接口名称为准
 func (c *Client) refreshServices() {
+	lastDomainMapUrl := c.domainMapUrl
 	//首先更新服务列表白名单
 	c.updateServiceNameList()
 	//根据服务列表白名单更新服务实例
 	if len(c.urlStrList) > 0 {
+		//先删除之前有，当前没有的service
+		c.deleteNotExistService(lastDomainMapUrl)
 		for domainName, curUrl := range c.domainMapUrl {
 			if len(domainName) > 0 {
 				jdNpDNSJsonObj := getDnsToVipInfoByHttp(domainName)
@@ -219,7 +239,8 @@ func getDnsToVipInfoByHttp( domain string ) *JdNpDNSJsonObj {
 	log.Infof("getDnsToVipInfoByHttp \ntimeStr: %s", timeStr)
 	signStr := sign(erp, secretKey, timeStr)
 	log.Infof("getDnsToVipInfoByHttp \nsignStr: %s", signStr)
-	req, err := http.NewRequest("GET", dnsToVipLbInfosUrl, nil)
+	curDnsToVipLbInfosUrl := fmt.Sprintf(dnsToVipLbInfosUrl, domain)
+	req, err := http.NewRequest("GET", curDnsToVipLbInfosUrl, nil)
 	if err != nil {
 		log.Errora("getDnsToVipInfoByHttp http GET method is error.",err)
 		return nil

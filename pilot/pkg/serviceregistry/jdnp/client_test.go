@@ -15,7 +15,8 @@ func TestRefreshService(t *testing.T) {
 
 	scanWorker := time.NewTicker( time.Second * 3 )
 
-	var urlStrList = []string{"TCP://pfinder-jmtp.jd.local:20560"}
+	//var urlStrList = []string{"TCP://pfinder-jmtp.jd.local:20560"}
+	var urlStrList = []string{"TCP://mock-test.jsf.jd.com:20560"}
 
 	var client *Client = &Client{
 		urlStrList:    urlStrList,
