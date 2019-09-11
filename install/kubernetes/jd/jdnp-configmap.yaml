@@ -4,6 +4,7 @@ metadata:
   name: bigmesh.jdnp.domain.white.list
   labels:
     bigmesh/app: bigmesh.jdnp.config
+  namespace: bigmesh-system
 data:
   whiteList: |-
-   TCP://pfinder-jmtp.jd.local:20560,TCP://mock-test.jsf.jd.com:20560
+   http://jsf.jd.com:80

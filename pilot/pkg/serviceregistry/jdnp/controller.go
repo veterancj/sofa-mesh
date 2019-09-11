@@ -207,12 +207,23 @@ func toService(s *Service) *model.Service {
 	service := &model.Service{
 		Hostname:   model.Hostname(s.Name()),
 		Resolution: model.ClientSideLB,
+		MeshExternal: true,
+		Address:      model.UnspecifiedIP,
 		Ports:      ports,
 		Attributes: model.ServiceAttributes{
 			Name: s.Name(),
 			Namespace: model.IstioDefaultConfigNamespace,
 			ExportTo: map[model.Visibility]bool{model.VisibilityPublic:true},
 		},
+	}
+	//可以通过url设置指定的IP地址访问
+	if len(s.instances)>0 {
+		for _, ins := range s.instances {
+			if val, exist := ins.Labels["address"] ; exist {
+				service.Address = val;
+				break
+			}
+		}
 	}
 	return service
 }

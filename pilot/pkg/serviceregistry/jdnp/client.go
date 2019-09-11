@@ -34,7 +34,7 @@ const (
 
 type Client struct {
 	urlStrList    []string
-	domainMapUrl  map[string]*url.URL
+	domainMapUrl  map[string][]*url.URL
 	refreshPeriod int
 	services      map[string]*Service
 	out           chan ServiceEvent
@@ -102,7 +102,7 @@ func (c *Client) updateServiceNameList()  {
 	}
 }
 
-func (c *Client) deleteNotExistService( lastDomainMapUrl map[string]*url.URL ){
+func (c *Client) deleteNotExistService( lastDomainMapUrl map[string][]*url.URL ){
 	if len(lastDomainMapUrl) > 0 {
 		for lastKey, _ := range lastDomainMapUrl {
 			isExist := false
@@ -127,14 +127,14 @@ func (c *Client) refreshServices() {
 	if len(c.urlStrList) > 0 {
 		//先删除之前有，当前没有的service
 		c.deleteNotExistService(lastDomainMapUrl)
-		for domainName, curUrl := range c.domainMapUrl {
+		for domainName, curUrls := range c.domainMapUrl {
 			if len(domainName) > 0 {
 				jdNpDNSJsonObj := getDnsToVipInfoByHttp(domainName)
 				if jdNpDNSJsonObj != nil && jdNpDNSJsonObj.ResStatus == 200 {
 					if(len(jdNpDNSJsonObj.Data)<=0 ){
 						c.deleteService(domainName)
 					} else {
-						serviceMap := convertToService(jdNpDNSJsonObj, curUrl)
+						serviceMap := convertToService(jdNpDNSJsonObj, curUrls)
 						if len(serviceMap) <= 0 {
 							c.deleteService(domainName)
 						} else {

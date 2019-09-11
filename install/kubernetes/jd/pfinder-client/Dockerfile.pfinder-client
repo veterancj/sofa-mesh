@@ -1,0 +1,5 @@
+FROM imanticsiot/java8
+
+ADD pfinder-client-test.jar /root/
+ENTRYPOINT ["/usr/bin/java", "-jar", "/root/pfinder-client-test.jar"]
+

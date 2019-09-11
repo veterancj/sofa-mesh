@@ -138,3 +138,24 @@ func TestGetService(t *testing.T) {
 	}
 }
 
+
+func TestGetServiceAfterSleep(t *testing.T) {
+	var stop = make(chan struct{})
+	client := createClient(stop, t);
+	if client != nil {
+		defer func() {
+			close(stop)
+		}()
+	}
+
+	//wg := sync.WaitGroup{}
+	//wg.Add(1)
+	//wg.Wait()
+	time.Sleep(8 * time.Second)
+	svcs := client.Services()
+	log.Infof("client.Services():%d", len(svcs))
+
+	if len(svcs) <= 0 {
+		t.Errorf("client.Services() = empty, expect:>1! ")
+	}
+}

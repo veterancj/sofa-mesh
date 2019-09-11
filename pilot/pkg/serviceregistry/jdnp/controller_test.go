@@ -52,7 +52,7 @@ func TestInstances(t *testing.T) {
 
 	time.Sleep(8 * time.Second)
 
-	ins, err := controller.Instances("pfinder-jmtp.jd.local", []string{"tcp"}, model.LabelsCollection{})
+	ins, err := controller.Instances("mock-test.jsf.jd.com", []string{"tcp"}, model.LabelsCollection{})
 	if err != nil {
 		log.Errorf("%s",err)
 	}

@@ -33,13 +33,13 @@ galley:
 #
 # @see charts/mixer/values.yaml, it takes precedence
 mixer:
-  enabled: true
+  enabled: false
   policy:
     # if policy is enabled the global.disablePolicyChecks has affect.
-    enabled: true
+    enabled: false
 
   telemetry:
-    enabled: true
+    enabled: false
 #
 # pilot configuration
 #
@@ -51,7 +51,7 @@ pilot:
 # security configuration
 #
 security:
-  enabled: true
+  enabled: false
 
 #
 # nodeagent configuration
@@ -69,7 +69,7 @@ grafana:
 # addon prometheus configuration
 #
 prometheus:
-  enabled: true
+  enabled: false
 
 #
 # addon servicegraph configuration
@@ -217,7 +217,7 @@ global:
     #     Redirect all inbound traffic to Envoy:   --includeInboundPorts="*"
     #     Redirect only selected ports:            --includeInboundPorts="80,8080"
     includeInboundPorts: "*"
-    excludeInboundPorts: ""
+    excludeInboundPorts: "1800"
 
     # This controls the 'policy' in the sidecar injector.
     autoInject: enabled

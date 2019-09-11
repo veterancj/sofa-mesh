@@ -1,0 +1,49 @@
+# This ServiceEntry exposes the hosts needed for installing packages with apt-get.
+# After applying this file, Istio-enabled pods (configured apt-get) be able to execute
+# `apt-get upgrade` and `apt-get install`.  If this is not installed you may get
+# "404  Not Found"
+
+apiVersion: networking.istio.io/v1alpha3
+kind: ServiceEntry
+metadata:
+  name: pfinder-naming
+spec:
+  hosts:
+  - mock-test.jsf.jd.com
+#  - 192.168.180.140
+  addresses: 
+  - 192.168.180.140
+  ports:
+  - number: 1800
+    name: http
+    protocol: HTTP
+  location: MESH_EXTERNAL
+  resolution: DNS
+#  endpoints:
+#  - address: 192.168.180.140
+#    ports: 
+#     http: 1800 
+
+---
+
+apiVersion: networking.istio.io/v1alpha3
+kind: ServiceEntry
+metadata:
+  name: pfinder-server
+spec:
+  hosts:
+  - mock-test.jsf.jd.com
+#  - 192.168.180.140
+  addresses: 
+  - 192.168.180.140
+  ports:
+  - number: 20560
+    name: tcp
+    protocol: TCP
+  location: MESH_EXTERNAL
+  resolution: STATIC
+  endpoints:
+  - address: 192.168.180.140
+    ports: 
+     tcp: 20560 
+
