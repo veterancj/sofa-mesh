@@ -8,7 +8,8 @@ autoscaleMax: 5
 # specify replicaCount when autoscaleEnabled: false
 # replicaCount: 1
 #image: pilot
-image: docker.io/veterancj/pilot-debug:0.0.1
+#image: docker.io/veterancj/pilot-debug:0.0.1
+image: ishc.harbor.svc.hcyf.n.jd.local/jstenhance/pilot-debug:0.0.1
 sidecar: true
 traceSampling: 1.0
 # Resources for a small pilot install
