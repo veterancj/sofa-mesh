@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: pfinder-test-client
+  name: pfinder-test-client
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pfinder-test-client
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: pfinder-test-client
+      name: pfinder-test-client
+      namespace: default
+      annotations: 
+        traffic.sidecar.istio.io/includeInboundPorts: ''
+    spec:
+      containers:
+      - image: ishc.harbor.svc.hcyf.n.jd.local/jstenhance/pfinder-test-client:0.0.1
+        imagePullPolicy: Always
+        name: pfinder-test-client
+      imagePullSecrets:
+      - name: regsecret
+
